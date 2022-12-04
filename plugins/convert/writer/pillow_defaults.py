@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
@@ -51,13 +52,13 @@ _DEFAULTS = dict(
     format=dict(
         default="png",
         info="Image format to use:"
-             "\n\t bmp: Windows bitmap"
-             "\n\t gif: Graphics Interchange Format (NB: Not animated)"
-             "\n\t jpg: JPEG format"
-             "\n\t jp2: JPEG 2000 format"
-             "\n\t png: Portable Network Graphics"
-             "\n\t ppm: Portable Pixmap Format"
-             "\n\t tif: Tag Image File Format",
+        "\n\t bmp: Windows bitmap"
+        "\n\t gif: Graphics Interchange Format (NB: Not animated)"
+        "\n\t jpg: JPEG format"
+        "\n\t jp2: JPEG 2000 format"
+        "\n\t png: Portable Network Graphics"
+        "\n\t ppm: Portable Pixmap Format"
+        "\n\t tif: Tag Image File Format",
         datatype=str,
         rounding=None,
         min_max=None,
@@ -69,8 +70,8 @@ _DEFAULTS = dict(
     draw_transparent=dict(
         default=False,
         info="Place the swapped face on a transparent layer rather than the original frame.\nNB: "
-             "This is only compatible with images saved in png or tif format. If an incompatible "
-             "format is selected then the image will be saved as a png.",
+        "This is only compatible with images saved in png or tif format. If an incompatible "
+        "format is selected then the image will be saved as a png.",
         datatype=bool,
         rounding=None,
         min_max=None,
@@ -82,10 +83,10 @@ _DEFAULTS = dict(
     separate_mask=dict(
         default=False,
         info="Seperate the mask into its own single channel image. This only applies when "
-             "'draw-transparent' is selected. If enabled, the RGB image will be saved into the "
-             "selected output folder whilst the masks will be saved into a sub-folder named "
-             "`masks`. If not enabled then the mask will be included in the alpha-channel of the "
-             "RGBA output.",
+        "'draw-transparent' is selected. If enabled, the RGB image will be saved into the "
+        "selected output folder whilst the masks will be saved into a sub-folder named "
+        "`masks`. If not enabled then the mask will be included in the alpha-channel of the "
+        "RGBA output.",
         datatype=bool,
         rounding=None,
         min_max=None,
@@ -97,7 +98,7 @@ _DEFAULTS = dict(
     optimize=dict(
         default=False,
         info="[gif, jpg and png only] If enabled, indicates that the encoder should make an extra "
-             "pass over the image in order to select optimal encoder settings.",
+        "pass over the image in order to select optimal encoder settings.",
         datatype=bool,
         rounding=None,
         min_max=None,
@@ -120,7 +121,7 @@ _DEFAULTS = dict(
     jpg_quality=dict(
         default=75,
         info="[jpg only] Set the jpg quality. 1 is worst 95 is best. Higher quality leads to "
-             "larger file sizes.",
+        "larger file sizes.",
         datatype=int,
         rounding=1,
         min_max=(1, 95),
@@ -132,8 +133,8 @@ _DEFAULTS = dict(
     png_compress_level=dict(
         default=3,
         info="[png only] ZLIB compression level, 1 gives best speed, 9 gives best compression, 0 "
-             "gives no compression at all. When optimize option is set to True this has no effect "
-             "(it is set to 9 regardless of a value passed).",
+        "gives no compression at all. When optimize option is set to True this has no effect "
+        "(it is set to 9 regardless of a value passed).",
         datatype=int,
         rounding=1,
         min_max=(0, 9),
@@ -148,9 +149,19 @@ _DEFAULTS = dict(
         datatype=str,
         rounding=None,
         min_max=None,
-        choices=["none", "tiff_ccitt", "group3", "group4", "tiff_jpeg", "tiff_adobe_deflate",
-                 "tiff_thunderscan", "tiff_deflate", "tiff_sgilog", "tiff_sgilog24",
-                 "tiff_raw_16"],
+        choices=[
+            "none",
+            "tiff_ccitt",
+            "group3",
+            "group4",
+            "tiff_jpeg",
+            "tiff_adobe_deflate",
+            "tiff_thunderscan",
+            "tiff_deflate",
+            "tiff_sgilog",
+            "tiff_sgilog24",
+            "tiff_raw_16",
+        ],
         group="compression",
         gui_radio=False,
         fixed=True,

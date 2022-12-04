@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = "DFL H128 Model (Adapted from https://github.com/iperov/DeepFaceLab)"
@@ -48,7 +49,7 @@ _DEFAULTS = {
     "lowmem": {
         "default": False,
         "info": "Lower memory mode. Set to 'True' if having issues with VRAM useage.\n"
-                "NB: Models with a changed lowmem mode are not compatible with each other.",
+        "NB: Models with a changed lowmem mode are not compatible with each other.",
         "datatype": bool,
         "rounding": None,
         "min_max": None,

@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
@@ -52,42 +53,42 @@ _DEFAULTS = {
     "input_size": {
         "default": 64,
         "info": "Resolution (in pixels) of the input image to train on.\n"
-                "BE AWARE Larger resolution will dramatically increase VRAM requirements.\n"
-                "Higher resolutions may increase prediction accuracy, but does not effect the "
-                "resulting output size.\nMust be between 64 and 128 and be divisible by 16.",
+        "BE AWARE Larger resolution will dramatically increase VRAM requirements.\n"
+        "Higher resolutions may increase prediction accuracy, but does not effect the "
+        "resulting output size.\nMust be between 64 and 128 and be divisible by 16.",
         "datatype": int,
         "rounding": 16,
         "min_max": (64, 128),
         "choices": [],
         "gui_radio": False,
         "fixed": True,
-        "group": "size"
+        "group": "size",
     },
     "output_size": {
         "default": 128,
         "info": "Output image resolution (in pixels).\nBe aware that larger resolution will "
-                "increase VRAM requirements.\nNB: Must be between 64 and 256 and be divisible "
-                "by 16.",
+        "increase VRAM requirements.\nNB: Must be between 64 and 256 and be divisible "
+        "by 16.",
         "datatype": int,
         "rounding": 16,
         "min_max": (64, 256),
         "choices": [],
         "gui_radio": False,
         "fixed": True,
-        "group": "size"
+        "group": "size",
     },
     "dense_nodes": {
         "default": 1536,
         "info": "Number of nodes for decoder. Might affect your model's ability to learn in "
-                "general.\nNote that: Lower values will affect the ability to predict "
-                "details.",
+        "general.\nNote that: Lower values will affect the ability to predict "
+        "details.",
         "datatype": int,
         "rounding": 64,
         "min_max": (768, 2048),
         "choices": [],
         "gui_radio": False,
         "fixed": True,
-        "group": "network"
+        "group": "network",
     },
     "complexity_encoder": {
         "default": 128,
@@ -98,7 +99,7 @@ _DEFAULTS = {
         "choices": [],
         "gui_radio": False,
         "fixed": True,
-        "group": "network"
+        "group": "network",
     },
     "complexity_decoder": {
         "default": 512,
@@ -109,6 +110,6 @@ _DEFAULTS = {
         "choices": [],
         "gui_radio": False,
         "fixed": True,
-        "group": "network"
+        "group": "network",
     },
 }

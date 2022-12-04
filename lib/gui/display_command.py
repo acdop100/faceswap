@@ -1,28 +1,31 @@
 #!/usr/bin python3
 """ Command specific tabs of Display Frame of the Faceswap GUI """
+from __future__ import annotations
+
 import datetime
 import gettext
 import logging
 import os
 import sys
 import tkinter as tk
-
 from tkinter import ttk
-from typing import Dict, Optional, Tuple
+from typing import Dict
+from typing import get_args
+from typing import Literal
+from typing import Optional
+from typing import Tuple
 
-from lib.training.preview_tk import PreviewTk
-
+from .analysis import Calculations
+from .analysis import Session
+from .control_helper import set_slider_rounding
+from .custom_widgets import Tooltip
 from .display_graph import TrainingGraph
 from .display_page import DisplayOptionalPage
-from .custom_widgets import Tooltip
-from .analysis import Calculations, Session
-from .control_helper import set_slider_rounding
-from .utils import FileHandler, get_config, get_images, preview_trigger
-
-if sys.version_info < (3, 8):
-    from typing_extensions import get_args, Literal
-else:
-    from typing import get_args, Literal
+from .utils import FileHandler
+from .utils import get_config
+from .utils import get_images
+from .utils import preview_trigger
+from lib.training.preview_tk import PreviewTk
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -32,28 +35,35 @@ _ = _LANG.gettext
 
 
 class PreviewExtract(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
-    """ Tab to display output preview images for extract and convert """
+    """Tab to display output preview images for extract and convert"""
+
     def __init__(self, *args, **kwargs) -> None:
-        logger.debug("Initializing %s (args: %s, kwargs: %s)",
-                     self.__class__.__name__, args, kwargs)
+        logger.debug(
+            "Initializing %s (args: %s, kwargs: %s)",
+            self.__class__.__name__,
+            args,
+            kwargs,
+        )
         self._preview = get_images().preview_extract
         super().__init__(*args, **kwargs)
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def display_item_set(self) -> None:
-        """ Load the latest preview if available """
+        """Load the latest preview if available"""
         logger.trace("Loading latest preview")  # type:ignore
-        size = int(256 if self.command == "convert" else 128 * get_config().scaling_factor)
-        if not self._preview.load_latest_preview(thumbnail_size=size,
-                                                 frame_dims=(self.winfo_width(),
-                                                             self.winfo_height())):
+        size = int(
+            256 if self.command == "convert" else 128 * get_config().scaling_factor
+        )
+        if not self._preview.load_latest_preview(
+            thumbnail_size=size, frame_dims=(self.winfo_width(), self.winfo_height())
+        ):
             logger.trace("Preview not updated")  # type:ignore
             return
         logger.debug("Preview loaded")
         self.display_item = True
 
     def display_item_process(self) -> None:
-        """ Display the preview """
+        """Display the preview"""
         logger.trace("Displaying preview")  # type:ignore
         if not self.subnotebook.children:
             self.add_child()
@@ -61,7 +71,7 @@ class PreviewExtract(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
             self.update_child()
 
     def add_child(self) -> None:
-        """ Add the preview label child """
+        """Add the preview label child"""
         logger.debug("Adding child")
         preview = self.subnotebook_add_page(self.tabname, widget=None)
         lblpreview = ttk.Label(preview, image=self._preview.image)
@@ -69,13 +79,13 @@ class PreviewExtract(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         Tooltip(lblpreview, text=self.helptext, wrap_length=200)
 
     def update_child(self) -> None:
-        """ Update the preview image on the label """
+        """Update the preview image on the label"""
         logger.trace("Updating preview")  # type:ignore
         for widget in self.subnotebook_get_widgets():
             widget.configure(image=self._preview.image)
 
     def save_items(self) -> None:
-        """ Open save dialogue and save preview """
+        """Open save dialogue and save preview"""
         location = FileHandler("dir", None).return_file
         if not location:
             return
@@ -87,24 +97,29 @@ class PreviewExtract(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
 
 
 class PreviewTrain(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
-    """ Training preview image(s) """
+    """Training preview image(s)"""
+
     def __init__(self, *args, **kwargs) -> None:
-        logger.debug("Initializing %s (args: %s, kwargs: %s)",
-                     self.__class__.__name__, args, kwargs)
+        logger.debug(
+            "Initializing %s (args: %s, kwargs: %s)",
+            self.__class__.__name__,
+            args,
+            kwargs,
+        )
         self._preview = get_images().preview_train
-        self._display: Optional[PreviewTk] = None
+        self._display: PreviewTk | None = None
         super().__init__(*args, **kwargs)
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def add_options(self) -> None:
-        """ Add the additional options """
+        """Add the additional options"""
         self._add_option_refresh()
         self._add_option_mask_toggle()
         super().add_options()
 
     def subnotebook_hide(self) -> None:
-        """ Override default subnotebook hide action to also remove the embedded option bar
-        control and reset the training image buffer """
+        """Override default subnotebook hide action to also remove the embedded option bar
+        control and reset the training image buffer"""
         if self.subnotebook and self.subnotebook.winfo_ismapped():
             logger.debug("Removing preview controls from options bar")
             if self._display is not None:
@@ -115,32 +130,39 @@ class PreviewTrain(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
             self._preview.reset()
 
     def _add_option_refresh(self) -> None:
-        """ Add refresh button to refresh preview immediately """
+        """Add refresh button to refresh preview immediately"""
         logger.debug("Adding refresh option")
-        btnrefresh = ttk.Button(self.optsframe,
-                                image=get_images().icons["reload"],
-                                command=lambda x="update": preview_trigger().set(x))  # type:ignore
+        btnrefresh = ttk.Button(
+            self.optsframe,
+            image=get_images().icons["reload"],
+            command=lambda x="update": preview_trigger().set(x),
+        )  # type:ignore
         btnrefresh.pack(padx=2, side=tk.RIGHT)
-        Tooltip(btnrefresh,
-                text=_("Preview updates at every model save. Click to refresh now."),
-                wrap_length=200)
+        Tooltip(
+            btnrefresh,
+            text=_("Preview updates at every model save. Click to refresh now."),
+            wrap_length=200,
+        )
         logger.debug("Added refresh option")
 
     def _add_option_mask_toggle(self) -> None:
-        """ Add button to toggle mask display on and off """
+        """Add button to toggle mask display on and off"""
         logger.debug("Adding mask toggle option")
         btntoggle = ttk.Button(
             self.optsframe,
             image=get_images().icons["mask2"],
-            command=lambda x="mask_toggle": preview_trigger().set(x))  # type:ignore
+            command=lambda x="mask_toggle": preview_trigger().set(x),
+        )  # type:ignore
         btntoggle.pack(padx=2, side=tk.RIGHT)
-        Tooltip(btntoggle,
-                text=_("Click to toggle mask overlay on and off."),
-                wrap_length=200)
+        Tooltip(
+            btntoggle,
+            text=_("Click to toggle mask overlay on and off."),
+            wrap_length=200,
+        )
         logger.debug("Added mask toggle option")
 
     def display_item_set(self) -> None:
-        """ Load the latest preview if available """
+        """Load the latest preview if available"""
         # TODO This seems to be triggering faster than the waittime
         logger.trace("Loading latest preview")  # type:ignore
         if not self._preview.load():
@@ -150,16 +172,18 @@ class PreviewTrain(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         self.display_item = True
 
     def display_item_process(self) -> None:
-        """ Display the preview(s) resized as appropriate """
+        """Display the preview(s) resized as appropriate"""
         if self.subnotebook.children:
             return
 
         logger.debug("Displaying preview")
-        self._display = PreviewTk(self._preview.buffer, self.subnotebook, self.optsframe, None)
+        self._display = PreviewTk(
+            self._preview.buffer, self.subnotebook, self.optsframe, None
+        )
         self.subnotebook_add_page(self.tabname, widget=self._display.master_frame)
 
     def save_items(self) -> None:
-        """ Open save dialogue and save preview """
+        """Open save dialogue and save preview"""
         if self._display is None:
             return
 
@@ -171,19 +195,23 @@ class PreviewTrain(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
 
 
 class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
-    """ The Graph Tab of the Display section """
-    def __init__(self,
-                 parent: ttk.Notebook,
-                 tab_name: str,
-                 helptext: str,
-                 wait_time: int,
-                 command: Optional[str] = None) -> None:
-        self._trace_vars: Dict[Literal["smoothgraph", "display_iterations"],
-                               Tuple[tk.BooleanVar, str]] = {}
+    """The Graph Tab of the Display section"""
+
+    def __init__(
+        self,
+        parent: ttk.Notebook,
+        tab_name: str,
+        helptext: str,
+        wait_time: int,
+        command: str | None = None,
+    ) -> None:
+        self._trace_vars: dict[
+            Literal["smoothgraph", "display_iterations"], tuple[tk.BooleanVar, str]
+        ] = {}
         super().__init__(parent, tab_name, helptext, wait_time, command)
 
     def set_vars(self) -> None:
-        """ Add graphing specific variables to the default variables.
+        """Add graphing specific variables to the default variables.
 
         Overrides original method.
 
@@ -214,7 +242,7 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         return tk_vars
 
     def on_tab_select(self) -> None:
-        """ Callback for when the graph tab is selected.
+        """Callback for when the graph tab is selected.
 
         Pull latest data and run the tab's update code when the tab is selected.
         """
@@ -224,7 +252,7 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         self._update_page()
 
     def add_options(self) -> None:
-        """ Add the additional options """
+        """Add the additional options"""
         self._add_option_refresh()
         super().add_options()
         self._add_option_raw()
@@ -233,48 +261,56 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         self._add_option_iterations()
 
     def _add_option_refresh(self) -> None:
-        """ Add refresh button to refresh graph immediately """
+        """Add refresh button to refresh graph immediately"""
         logger.debug("Adding refresh option")
         tk_var = get_config().tk_vars.refresh_graph
-        btnrefresh = ttk.Button(self.optsframe,
-                                image=get_images().icons["reload"],
-                                command=lambda: tk_var.set(True))
+        btnrefresh = ttk.Button(
+            self.optsframe,
+            image=get_images().icons["reload"],
+            command=lambda: tk_var.set(True),
+        )
         btnrefresh.pack(padx=2, side=tk.RIGHT)
-        Tooltip(btnrefresh,
-                text=_("Graph updates at every model save. Click to refresh now."),
-                wrap_length=200)
+        Tooltip(
+            btnrefresh,
+            text=_("Graph updates at every model save. Click to refresh now."),
+            wrap_length=200,
+        )
         logger.debug("Added refresh option")
 
     def _add_option_raw(self) -> None:
-        """ Add check-button to hide/display raw data """
+        """Add check-button to hide/display raw data"""
         logger.debug("Adding display raw option")
         tk_var = self.vars["raw_data"]
         chkbtn = ttk.Checkbutton(
             self.optsframe,
             variable=tk_var,
             text="Raw",
-            command=lambda v=tk_var: self._display_data_callback("raw", v))  # type:ignore
+            command=lambda v=tk_var: self._display_data_callback("raw", v),
+        )  # type:ignore
         chkbtn.pack(side=tk.RIGHT, padx=5, anchor=tk.W)
         Tooltip(chkbtn, text=_("Display the raw loss data"), wrap_length=200)
 
     def _add_option_smoothed(self) -> None:
-        """ Add check-button to hide/display smoothed data """
+        """Add check-button to hide/display smoothed data"""
         logger.debug("Adding display smoothed option")
         tk_var = self.vars["smooth_data"]
         chkbtn = ttk.Checkbutton(
             self.optsframe,
             variable=tk_var,
             text="Smoothed",
-            command=lambda v=tk_var: self._display_data_callback("smoothed", v))  # type:ignore
+            command=lambda v=tk_var: self._display_data_callback("smoothed", v),
+        )  # type:ignore
         chkbtn.pack(side=tk.RIGHT, padx=5, anchor=tk.W)
         Tooltip(chkbtn, text=_("Display the smoothed loss data"), wrap_length=200)
 
     def _add_option_smoothing(self) -> None:
-        """ Add a slider to adjust the smoothing amount """
+        """Add a slider to adjust the smoothing amount"""
         logger.debug("Adding Smoothing Slider")
         tk_var = self.vars["smoothgraph"]
         min_max = (0, 0.999)
-        hlp = _("Set the smoothing amount. 0 is no smoothing, 0.99 is maximum smoothing.")
+        hlp = _(
+            "Set the smoothing amount. 0 is no smoothing, 0.99 is maximum smoothing."
+        )
 
         ctl_frame = ttk.Frame(self.optsframe)
         ctl_frame.pack(padx=2, side=tk.RIGHT)
@@ -288,19 +324,19 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         ctl = ttk.Scale(
             ctl_frame,
             variable=tk_var,
-            command=lambda val, var=tk_var, dt=float, rn=3, mm=min_max:  # type:ignore
-            set_slider_rounding(val, var, dt, rn, mm))
+            command=lambda val, var=tk_var, dt=float, rn=3, mm=min_max: set_slider_rounding(  # type:ignore
+                val, var, dt, rn, mm
+            ),
+        )
         ctl["from_"] = min_max[0]
         ctl["to"] = min_max[1]
         ctl.pack(padx=5, pady=5, fill=tk.X, expand=True)
         for item in (tbox, ctl):
-            Tooltip(item,
-                    text=hlp,
-                    wrap_length=200)
+            Tooltip(item, text=hlp, wrap_length=200)
         logger.debug("Added Smoothing Slider")
 
     def _add_option_iterations(self) -> None:
-        """ Add a slider to adjust the amount if iterations to display """
+        """Add a slider to adjust the amount if iterations to display"""
         logger.debug("Adding Iterations Slider")
         tk_var = self.vars["display_iterations"]
         min_max = (0, 100000)
@@ -318,19 +354,19 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         ctl = ttk.Scale(
             ctl_frame,
             variable=tk_var,
-            command=lambda val, var=tk_var, dt=int, rn=1000, mm=min_max:  # type:ignore
-            set_slider_rounding(val, var, dt, rn, mm))
+            command=lambda val, var=tk_var, dt=int, rn=1000, mm=min_max: set_slider_rounding(  # type:ignore
+                val, var, dt, rn, mm
+            ),
+        )
         ctl["from_"] = min_max[0]
         ctl["to"] = min_max[1]
         ctl.pack(padx=5, pady=5, fill=tk.X, expand=True)
         for item in (tbox, ctl):
-            Tooltip(item,
-                    text=hlp,
-                    wrap_length=200)
+            Tooltip(item, text=hlp, wrap_length=200)
         logger.debug("Added Iterations Slider")
 
     def display_item_set(self) -> None:
-        """ Load the graph(s) if available """
+        """Load the graph(s) if available"""
         if Session.is_training and Session.logging_disabled:
             logger.trace("Logs disabled. Hiding graph")  # type:ignore
             self.set_info("Graph is disabled as 'no-logs' has been selected")
@@ -348,7 +384,7 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
             self._clear_trace_variables()
 
     def display_item_process(self) -> None:
-        """ Add a single graph to the graph window """
+        """Add a single graph to the graph window"""
         if not Session.is_training:
             logger.debug("Waiting for Session Data to become available to graph")
             self.after(1000, self.display_item_process)
@@ -365,7 +401,7 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
             return
 
         loss_keys = [key for key in loss_keys if key != "total"]
-        display_tabs = sorted(set(key[:-1].rstrip("_") for key in loss_keys))
+        display_tabs = sorted({key[:-1].rstrip("_") for key in loss_keys})
 
         for loss_key in display_tabs:
             tabname = loss_key.replace("_", " ").title()
@@ -373,40 +409,46 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
                 continue
 
             display_keys = [key for key in loss_keys if key.startswith(loss_key)]
-            data = Calculations(session_id=Session.session_ids[-1],
-                                display="loss",
-                                loss_keys=display_keys,
-                                selections=["raw", "smoothed"],
-                                smooth_amount=self.vars["smoothgraph"].get())
+            data = Calculations(
+                session_id=Session.session_ids[-1],
+                display="loss",
+                loss_keys=display_keys,
+                selections=["raw", "smoothed"],
+                smooth_amount=self.vars["smoothgraph"].get(),
+            )
             self.add_child(tabname, data)
 
     def _smooth_amount_callback(self, *args) -> None:
-        """ Update each graph's smooth amount on variable change """
+        """Update each graph's smooth amount on variable change"""
         try:
             smooth_amount = self.vars["smoothgraph"].get()
         except tk.TclError:
             # Don't update when there is no value in the variable
             return
-        logger.debug("Updating graph smooth_amount: (new_value: %s, args: %s)",
-                     smooth_amount, args)
+        logger.debug(
+            "Updating graph smooth_amount: (new_value: %s, args: %s)",
+            smooth_amount,
+            args,
+        )
         for graph in self.subnotebook.children.values():
             graph.calcs.set_smooth_amount(smooth_amount)
 
     def _iteration_limit_callback(self, *args) -> None:
-        """ Limit the amount of data displayed in the live graph on a iteration slider
-        variable change. """
+        """Limit the amount of data displayed in the live graph on a iteration slider
+        variable change."""
         try:
             limit = self.vars["display_iterations"].get()
         except tk.TclError:
             # Don't update when there is no value in the variable
             return
-        logger.debug("Updating graph iteration limit: (new_value: %s, args: %s)",
-                     limit, args)
+        logger.debug(
+            "Updating graph iteration limit: (new_value: %s, args: %s)", limit, args
+        )
         for graph in self.subnotebook.children.values():
             graph.calcs.set_iterations_limit(limit)
 
     def _display_data_callback(self, line: str, variable: tk.BooleanVar) -> None:
-        """ Update the displayed graph lines based on option check button selection.
+        """Update the displayed graph lines based on option check button selection.
 
         Parameters
         ----------
@@ -421,7 +463,7 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
             graph.calcs.update_selections(line, var)
 
     def add_child(self, name: str, data: Calculations) -> None:
-        """ Add the graph for the selected keys.
+        """Add the graph for the selected keys.
 
         Parameters
         ----------
@@ -437,7 +479,7 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
         Tooltip(graph, text=self.helptext, wrap_length=200)
 
     def save_items(self) -> None:
-        """ Open save dialogue and save graphs """
+        """Open save dialogue and save graphs"""
         graphlocation = FileHandler("dir", None).return_file
         if not graphlocation:
             return
@@ -445,15 +487,17 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
             graph.save_fig(graphlocation)
 
     def _add_trace_variables(self) -> None:
-        """ Add tracing for when the option sliders are updated, for updating the graph. """
-        for name, action in zip(get_args(Literal["smoothgraph", "display_iterations"]),
-                                (self._smooth_amount_callback, self._iteration_limit_callback)):
+        """Add tracing for when the option sliders are updated, for updating the graph."""
+        for name, action in zip(
+            get_args(Literal["smoothgraph", "display_iterations"]),
+            (self._smooth_amount_callback, self._iteration_limit_callback),
+        ):
             var = self.vars[name]
             if name not in self._trace_vars:
                 self._trace_vars[name] = (var, var.trace("w", action))
 
     def _clear_trace_variables(self) -> None:
-        """ Clear all of the trace variables from :attr:`_trace_vars` and reset the dictionary. """
+        """Clear all of the trace variables from :attr:`_trace_vars` and reset the dictionary."""
         if self._trace_vars:
             for name, (var, trace) in self._trace_vars.items():
                 logger.debug("Clearing trace from variable: %s", name)
@@ -461,7 +505,7 @@ class GraphDisplay(DisplayOptionalPage):  # pylint: disable=too-many-ancestors
             self._trace_vars = {}
 
     def close(self) -> None:
-        """ Clear the plots from RAM """
+        """Clear the plots from RAM"""
         self._clear_trace_variables()
         if self.subnotebook is None:
             logger.debug("No graphs to clear. Returning")

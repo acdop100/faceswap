@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """ Normalization methods for faceswap.py. """
+from __future__ import annotations
 
-import sys
 import inspect
+import sys
 
-from plaidml.op import slice_tensor
-from keras.layers import Layer
-from keras import initializers, regularizers, constraints
 from keras import backend as K
+from keras import constraints
+from keras import initializers
+from keras import regularizers
+from keras.layers import Layer
 from keras.utils import get_custom_objects
+from plaidml.op import slice_tensor
 
 
 class LayerNormalization(Layer):
@@ -55,18 +58,21 @@ class LayerNormalization(Layer):
         - Layer Normalization - https://arxiv.org/abs/1607.06450
         - Keras implementation - https://github.com/CyberZHG/keras-layer-normalization
     """
-    def __init__(self,
-                 axis=-1,
-                 epsilon=1e-3,
-                 center=True,
-                 scale=True,
-                 beta_initializer="zeros",
-                 gamma_initializer="ones",
-                 beta_regularizer=None,
-                 gamma_regularizer=None,
-                 beta_constraint=None,
-                 gamma_constraint=None,
-                 **kwargs):
+
+    def __init__(
+        self,
+        axis=-1,
+        epsilon=1e-3,
+        center=True,
+        scale=True,
+        beta_initializer="zeros",
+        gamma_initializer="ones",
+        beta_regularizer=None,
+        gamma_regularizer=None,
+        beta_constraint=None,
+        gamma_constraint=None,
+        **kwargs,
+    ):
 
         self.gamma = None
         self.beta = None
@@ -77,8 +83,10 @@ class LayerNormalization(Layer):
         elif isinstance(axis, int):
             self.axis = axis
         else:
-            raise TypeError("Expected an int or a list/tuple of ints for the argument 'axis', "
-                            f"but received: {axis}")
+            raise TypeError(
+                "Expected an int or a list/tuple of ints for the argument 'axis', "
+                f"but received: {axis}"
+            )
 
         self.epsilon = epsilon
         self.center = center
@@ -118,7 +126,7 @@ class LayerNormalization(Layer):
             if axs < 0 or axs >= ndims:
                 raise ValueError(f"Invalid axis: {axs}")
         if len(self.axis) != len(set(self.axis)):
-            raise ValueError("Duplicate axis: {}".format(tuple(self.axis)))
+            raise ValueError(f"Duplicate axis: {tuple(self.axis)}")
 
         param_shape = [input_shape[dim] for dim in self.axis]
         if self.scale:
@@ -127,14 +135,16 @@ class LayerNormalization(Layer):
                 shape=param_shape,
                 initializer=self.gamma_initializer,
                 regularizer=self.gamma_regularizer,
-                constraint=self.gamma_constraint)
+                constraint=self.gamma_constraint,
+            )
         if self.center:
             self.beta = self.add_weight(
-                name='beta',
+                name="beta",
                 shape=param_shape,
                 initializer=self.beta_initializer,
                 regularizer=self.beta_regularizer,
-                constraint=self.beta_constraint)
+                constraint=self.beta_constraint,
+            )
 
         self.built = True  # pylint:disable=attribute-defined-outside-init
 
@@ -161,7 +171,7 @@ class LayerNormalization(Layer):
             broadcast_shape[dim] = input_shape[dim]
 
         def _broadcast(var):
-            if (var is not None and len(var.shape) != ndims and self.axis != [ndims - 1]):
+            if var is not None and len(var.shape) != ndims and self.axis != [ndims - 1]:
                 return K.reshape(var, broadcast_shape)
             return var
 
@@ -180,7 +190,7 @@ class LayerNormalization(Layer):
         return outputs
 
     def compute_output_shape(self, input_shape):  # pylint:disable=no-self-use
-        """ The output shape of the layer is the same as the input shape.
+        """The output shape of the layer is the same as the input shape.
 
         Parameters
         ----------
@@ -210,21 +220,23 @@ class LayerNormalization(Layer):
             A python dictionary containing the layer configuration
         """
         base_config = super().get_config()
-        config = dict(axis=self.axis,
-                      epsilon=self.epsilon,
-                      center=self.center,
-                      scale=self.scale,
-                      beta_initializer=initializers.serialize(self.beta_initializer),
-                      gamma_initializer=initializers.serialize(self.gamma_initializer),
-                      beta_regularizer=regularizers.serialize(self.beta_regularizer),
-                      gamma_regularizer=regularizers.serialize(self.gamma_regularizer),
-                      beta_constraint=constraints.serialize(self.beta_constraint),
-                      gamma_constraint=constraints.serialize(self.gamma_constraint))
+        config = dict(
+            axis=self.axis,
+            epsilon=self.epsilon,
+            center=self.center,
+            scale=self.scale,
+            beta_initializer=initializers.serialize(self.beta_initializer),
+            gamma_initializer=initializers.serialize(self.gamma_initializer),
+            beta_regularizer=regularizers.serialize(self.beta_regularizer),
+            gamma_regularizer=regularizers.serialize(self.gamma_regularizer),
+            beta_constraint=constraints.serialize(self.beta_constraint),
+            gamma_constraint=constraints.serialize(self.gamma_constraint),
+        )
         return dict(list(base_config.items()) + list(config.items()))
 
 
 class RMSNormalization(Layer):
-    """ Root Mean Square Layer Normalization (Biao Zhang, Rico Sennrich, 2019)
+    """Root Mean Square Layer Normalization (Biao Zhang, Rico Sennrich, 2019)
 
     RMSNorm is a simplification of the original layer normalization (LayerNorm). LayerNorm is a
     regularization technique that might handle the internal covariate shift issue so as to
@@ -257,6 +269,7 @@ class RMSNormalization(Layer):
         - RMS Normalization - https://arxiv.org/abs/1910.07467
         - Official implementation - https://github.com/bzhangGo/rmsnorm
     """
+
     def __init__(self, axis=-1, epsilon=1e-8, partial=0.0, bias=False, **kwargs):
         self.scale = None
         self.offset = 0
@@ -264,19 +277,23 @@ class RMSNormalization(Layer):
 
         # Checks
         if not isinstance(axis, int):
-            raise TypeError(f"Expected an int for the argument 'axis', but received: {axis}")
+            raise TypeError(
+                f"Expected an int for the argument 'axis', but received: {axis}"
+            )
 
         if not 0.0 <= partial <= 1.0:
-            raise ValueError(f"partial must be between 0.0 and 1.0, but received {partial}")
+            raise ValueError(
+                f"partial must be between 0.0 and 1.0, but received {partial}"
+            )
 
         self.axis = axis
         self.epsilon = epsilon
         self.partial = partial
         self.bias = bias
-        self.offset = 0.
+        self.offset = 0.0
 
     def build(self, input_shape):
-        """ Validate and populate :attr:`axis`
+        """Validate and populate :attr:`axis`
 
         Parameters
         ----------
@@ -298,19 +315,17 @@ class RMSNormalization(Layer):
 
         param_shape = [input_shape[self.axis]]
         self.scale = self.add_weight(
-            name="scale",
-            shape=param_shape,
-            initializer="ones")
+            name="scale", shape=param_shape, initializer="ones"
+        )
         if self.bias:
             self.offset = self.add_weight(
-                name="offset",
-                shape=param_shape,
-                initializer="zeros")
+                name="offset", shape=param_shape, initializer="zeros"
+            )
 
         self.built = True  # pylint:disable=attribute-defined-outside-init
 
     def call(self, inputs, **kwargs):  # pylint:disable=unused-argument
-        """ Call Root Mean Square Layer Normalization
+        """Call Root Mean Square Layer Normalization
 
         Parameters
         ----------
@@ -330,18 +345,17 @@ class RMSNormalization(Layer):
             mean_square = K.mean(K.square(inputs), axis=self.axis, keepdims=True)
         else:
             partial_size = int(layer_size * self.partial)
-            partial_x = slice_tensor(inputs,
-                                     axes=[self.axis],
-                                     starts=[0],
-                                     ends=[partial_size])
+            partial_x = slice_tensor(
+                inputs, axes=[self.axis], starts=[0], ends=[partial_size]
+            )
             mean_square = K.mean(K.square(partial_x), axis=self.axis, keepdims=True)
 
-        recip_square_root = 1. / K.sqrt(mean_square + self.epsilon)
+        recip_square_root = 1.0 / K.sqrt(mean_square + self.epsilon)
         output = self.scale * inputs * recip_square_root + self.offset
         return output
 
     def compute_output_shape(self, input_shape):  # pylint:disable=no-self-use
-        """ The output shape of the layer is the same as the input shape.
+        """The output shape of the layer is the same as the input shape.
 
         Parameters
         ----------
@@ -371,10 +385,9 @@ class RMSNormalization(Layer):
             A python dictionary containing the layer configuration
         """
         base_config = super().get_config()
-        config = dict(axis=self.axis,
-                      epsilon=self.epsilon,
-                      partial=self.partial,
-                      bias=self.bias)
+        config = dict(
+            axis=self.axis, epsilon=self.epsilon, partial=self.partial, bias=self.bias
+        )
         return dict(list(base_config.items()) + list(config.items()))
 
 

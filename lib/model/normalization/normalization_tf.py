@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """ Normalization methods for faceswap.py specific to Tensorflow backend """
+from __future__ import annotations
+
 import inspect
 import sys
 
 import tensorflow as tf
-# Ignore linting errors from Tensorflow's thoroughly broken import system
 from tensorflow.keras import backend as K  # pylint:disable=import-error
-from tensorflow.keras.layers import Layer, LayerNormalization  # noqa pylint:disable=no-name-in-module,unused-import,import-error
-from tensorflow.keras.utils import get_custom_objects  # noqa pylint:disable=no-name-in-module,import-error
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import LayerNormalization
+from tensorflow.keras.utils import (
+    get_custom_objects,
+)  # noqa pylint:disable=no-name-in-module,import-error
+
+# Ignore linting errors from Tensorflow's thoroughly broken import system
 
 
 class RMSNormalization(Layer):
-    """ Root Mean Square Layer Normalization (Biao Zhang, Rico Sennrich, 2019)
+    """Root Mean Square Layer Normalization (Biao Zhang, Rico Sennrich, 2019)
 
     RMSNorm is a simplification of the original layer normalization (LayerNorm). LayerNorm is a
     regularization technique that might handle the internal covariate shift issue so as to
@@ -44,6 +50,7 @@ class RMSNormalization(Layer):
         - RMS Normalization - https://arxiv.org/abs/1910.07467
         - Official implementation - https://github.com/bzhangGo/rmsnorm
     """
+
     def __init__(self, axis=-1, epsilon=1e-8, partial=0.0, bias=False, **kwargs):
         self.scale = None
         self.offset = 0
@@ -51,19 +58,23 @@ class RMSNormalization(Layer):
 
         # Checks
         if not isinstance(axis, int):
-            raise TypeError(f"Expected an int for the argument 'axis', but received: {axis}")
+            raise TypeError(
+                f"Expected an int for the argument 'axis', but received: {axis}"
+            )
 
         if not 0.0 <= partial <= 1.0:
-            raise ValueError(f"partial must be between 0.0 and 1.0, but received {partial}")
+            raise ValueError(
+                f"partial must be between 0.0 and 1.0, but received {partial}"
+            )
 
         self.axis = axis
         self.epsilon = epsilon
         self.partial = partial
         self.bias = bias
-        self.offset = 0.
+        self.offset = 0.0
 
     def build(self, input_shape):
-        """ Validate and populate :attr:`axis`
+        """Validate and populate :attr:`axis`
 
         Parameters
         ----------
@@ -85,19 +96,17 @@ class RMSNormalization(Layer):
 
         param_shape = [input_shape[self.axis]]
         self.scale = self.add_weight(
-            name="scale",
-            shape=param_shape,
-            initializer="ones")
+            name="scale", shape=param_shape, initializer="ones"
+        )
         if self.bias:
             self.offset = self.add_weight(
-                name="offset",
-                shape=param_shape,
-                initializer="zeros")
+                name="offset", shape=param_shape, initializer="zeros"
+            )
 
         self.built = True  # pylint:disable=attribute-defined-outside-init
 
     def call(self, inputs, **kwargs):  # pylint:disable=unused-argument
-        """ Call Root Mean Square Layer Normalization
+        """Call Root Mean Square Layer Normalization
 
         Parameters
         ----------
@@ -117,10 +126,12 @@ class RMSNormalization(Layer):
             mean_square = K.mean(K.square(inputs), axis=self.axis, keepdims=True)
         else:
             partial_size = int(layer_size * self.partial)
-            partial_x, _ = tf.split(  # pylint:disable=redundant-keyword-arg,no-value-for-parameter
-                inputs,
-                [partial_size, layer_size - partial_size],
-                axis=self.axis)
+            (
+                partial_x,
+                _,
+            ) = tf.split(  # pylint:disable=redundant-keyword-arg,no-value-for-parameter
+                inputs, [partial_size, layer_size - partial_size], axis=self.axis
+            )
             mean_square = K.mean(K.square(partial_x), axis=self.axis, keepdims=True)
 
         recip_square_root = tf.math.rsqrt(mean_square + self.epsilon)
@@ -128,7 +139,7 @@ class RMSNormalization(Layer):
         return output
 
     def compute_output_shape(self, input_shape):  # pylint:disable=no-self-use
-        """ The output shape of the layer is the same as the input shape.
+        """The output shape of the layer is the same as the input shape.
 
         Parameters
         ----------
@@ -158,10 +169,9 @@ class RMSNormalization(Layer):
             A python dictionary containing the layer configuration
         """
         base_config = super().get_config()
-        config = dict(axis=self.axis,
-                      epsilon=self.epsilon,
-                      partial=self.partial,
-                      bias=self.bias)
+        config = dict(
+            axis=self.axis, epsilon=self.epsilon, partial=self.partial, bias=self.bias
+        )
         return dict(list(base_config.items()) + list(config.items()))
 
 

@@ -11,6 +11,7 @@
 # Root files
 !Dockerfile*
 !.pylintrc
+!.pre-commit-config.yaml
 !setup.cfg
 !.travis.yml
 !/faceswap.py

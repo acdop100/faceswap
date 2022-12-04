@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """ The Faces Viewer Frame and Canvas for Faceswap's Manual Tool. """
+from __future__ import annotations
+
 import colorsys
 import gettext
 import logging
 import platform
 import tkinter as tk
+from math import ceil
+from math import floor
+from threading import Event
+from threading import Thread
 from tkinter import ttk
-from math import floor, ceil
-from threading import Thread, Event
 
 import numpy as np
 
-from lib.gui.custom_widgets import RightClickMenu, Tooltip
-from lib.gui.utils import get_config, get_images
-from lib.image import hex_to_rgb, rgb_to_hex
-
 from .viewport import Viewport
+from lib.gui.custom_widgets import RightClickMenu
+from lib.gui.custom_widgets import Tooltip
+from lib.gui.utils import get_config
+from lib.gui.utils import get_images
+from lib.image import hex_to_rgb
+from lib.image import rgb_to_hex
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -25,7 +31,7 @@ _ = _LANG.gettext
 
 
 class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
-    """ The faces display frame (bottom section of GUI). This frame holds the faces viewport and
+    """The faces display frame (bottom section of GUI). This frame holds the faces viewport and
     the tkinter objects.
 
     Parameters
@@ -39,10 +45,17 @@ class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
     display_frame: :class:`~tools.manual.frameviewer.frame.DisplayFrame`
         The section of the Manual Tool that holds the frames viewer
     """
+
     def __init__(self, parent, tk_globals, detected_faces, display_frame):
-        logger.debug("Initializing %s: (parent: %s, tk_globals: %s, detected_faces: %s, "
-                     "display_frame: %s)", self.__class__.__name__, parent, tk_globals,
-                     detected_faces, display_frame)
+        logger.debug(
+            "Initializing %s: (parent: %s, tk_globals: %s, detected_faces: %s, "
+            "display_frame: %s)",
+            self.__class__.__name__,
+            parent,
+            tk_globals,
+            detected_faces,
+            display_frame,
+        )
         super().__init__(parent)
         self.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         self._actions_frame = FacesActionsFrame(self)
@@ -51,17 +64,19 @@ class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         self._faces_frame.pack_propagate(0)
         self._faces_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self._event = Event()
-        self._canvas = FacesViewer(self._faces_frame,
-                                   tk_globals,
-                                   self._actions_frame._tk_vars,
-                                   detected_faces,
-                                   display_frame,
-                                   self._event)
+        self._canvas = FacesViewer(
+            self._faces_frame,
+            tk_globals,
+            self._actions_frame._tk_vars,
+            detected_faces,
+            display_frame,
+            self._event,
+        )
         self._add_scrollbar()
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def _add_scrollbar(self):
-        """ Add a scrollbar to the faces frame """
+        """Add a scrollbar to the faces frame"""
         logger.debug("Add Faces Viewer Scrollbar")
         scrollbar = ttk.Scrollbar(self._faces_frame, command=self._on_scroll)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -72,7 +87,7 @@ class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         return scrollbar.winfo_width()
 
     def _on_scroll(self, *event):
-        """ Callback on scrollbar scroll. Updates the canvas location and displays/hides
+        """Callback on scrollbar scroll. Updates the canvas location and displays/hides
         thumbnail images.
 
         Parameters
@@ -84,7 +99,7 @@ class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         self._canvas.viewport.update()
 
     def _update_viewport(self, event):  # pylint: disable=unused-argument
-        """ Update the faces viewport and scrollbar.
+        """Update the faces viewport and scrollbar.
 
         Parameters
         ----------
@@ -95,7 +110,7 @@ class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         self._canvas.configure(scrollregion=self._canvas.bbox("backdrop"))
 
     def canvas_scroll(self, direction):
-        """ Scroll the canvas on an up/down or page-up/page-down key press.
+        """Scroll the canvas on an up/down or page-up/page-down key press.
 
         Notes
         -----
@@ -117,12 +132,13 @@ class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         amount = 1 if direction.endswith("down") else -1
         units = "pages" if direction.startswith("page") else "units"
         self._event.set()
-        thread = Thread(target=self._canvas.canvas_scroll,
-                        args=(amount, units, self._event))
+        thread = Thread(
+            target=self._canvas.canvas_scroll, args=(amount, units, self._event)
+        )
         thread.start()
 
     def set_annotation_display(self, key):
-        """ Set the optional annotation overlay based on keyboard shortcut.
+        """Set the optional annotation overlay based on keyboard shortcut.
 
         Parameters
         ----------
@@ -133,49 +149,48 @@ class FacesFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
 
 
 class FacesActionsFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
-    """ The left hand action frame holding the optional annotation buttons.
+    """The left hand action frame holding the optional annotation buttons.
 
     Parameters
     ----------
     parent: :class:`FacesFrame`
         The Faces frame that this actions frame reside in
     """
+
     def __init__(self, parent):
-        logger.debug("Initializing %s: (parent: %s)",
-                     self.__class__.__name__, parent)
+        logger.debug("Initializing %s: (parent: %s)", self.__class__.__name__, parent)
         super().__init__(parent)
         self.pack(side=tk.LEFT, fill=tk.Y, padx=(2, 4), pady=2)
-        self._tk_vars = dict()
+        self._tk_vars = {}
         self._configure_styles()
         self._buttons = self._add_buttons()
         logger.debug("Initialized %s", self.__class__.__name__)
 
     @property
     def key_bindings(self):
-        """ dict: The mapping of key presses to optional annotations to display. Keyboard shortcuts
-        utilize the function keys. """
-        return {"F{}".format(idx + 9): display for idx, display in enumerate(("mesh", "mask"))}
+        """dict: The mapping of key presses to optional annotations to display. Keyboard shortcuts
+        utilize the function keys."""
+        return {f"F{idx + 9}": display for idx, display in enumerate(("mesh", "mask"))}
 
     @property
     def _helptext(self):
-        """ dict: `button key`: `button helptext`. The help text to display for each button. """
+        """dict: `button key`: `button helptext`. The help text to display for each button."""
         inverse_keybindings = {val: key for key, val in self.key_bindings.items()}
-        retval = dict(mesh=_("Display the landmarks mesh"),
-                      mask=_("Display the mask"))
+        retval = dict(mesh=_("Display the landmarks mesh"), mask=_("Display the mask"))
         for item in retval:
-            retval[item] += " ({})".format(inverse_keybindings[item])
+            retval[item] += f" ({inverse_keybindings[item]})"
         return retval
 
     def _configure_styles(self):
-        """ Configure the background color for button frame and the button styles. """
+        """Configure the background color for button frame and the button styles."""
         style = ttk.Style()
-        style.configure("display.TFrame", background='#d3d3d3')
+        style.configure("display.TFrame", background="#d3d3d3")
         style.configure("display_selected.TButton", relief="flat", background="#bedaf1")
         style.configure("display_deselected.TButton", relief="flat")
         self.config(style="display.TFrame")
 
     def _add_buttons(self):
-        """ Add the display buttons to the Faces window.
+        """Add the display buttons to the Faces window.
 
         Returns
         -------
@@ -184,17 +199,19 @@ class FacesActionsFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         """
         frame = ttk.Frame(self)
         frame.pack(side=tk.TOP, fill=tk.Y)
-        buttons = dict()
+        buttons = {}
         for display in self.key_bindings.values():
             var = tk.BooleanVar()
             var.set(False)
             self._tk_vars[display] = var
 
             lookup = "landmarks" if display == "mesh" else display
-            button = ttk.Button(frame,
-                                image=get_images().icons[lookup],
-                                command=lambda t=display: self.on_click(t),
-                                style="display_deselected.TButton")
+            button = ttk.Button(
+                frame,
+                image=get_images().icons[lookup],
+                command=lambda t=display: self.on_click(t),
+                style="display_deselected.TButton",
+            )
             button.state(["!pressed", "!focus"])
             button.pack()
             Tooltip(button, text=self._helptext[display])
@@ -202,7 +219,7 @@ class FacesActionsFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         return buttons
 
     def on_click(self, display):
-        """ Click event for the optional annotation buttons. Loads and unloads the annotations from
+        """Click event for the optional annotation buttons. Loads and unloads the annotations from
         the faces viewer.
 
         Parameters
@@ -212,7 +229,9 @@ class FacesActionsFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
             :attr:`_buttons`
         """
         is_pressed = not self._tk_vars[display].get()
-        style = "display_selected.TButton" if is_pressed else "display_deselected.TButton"
+        style = (
+            "display_selected.TButton" if is_pressed else "display_deselected.TButton"
+        )
         state = ["pressed", "focus"] if is_pressed else ["!pressed", "!focus"]
         btn = self._buttons[display]
         btn.configure(style=style)
@@ -220,8 +239,8 @@ class FacesActionsFrame(ttk.Frame):  # pylint:disable=too-many-ancestors
         self._tk_vars[display].set(is_pressed)
 
 
-class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
-    """ The :class:`tkinter.Canvas` that holds the faces viewer section of the Manual Tool.
+class FacesViewer(tk.Canvas):  # pylint:disable=too-many-ancestors
+    """The :class:`tkinter.Canvas` that holds the faces viewer section of the Manual Tool.
 
     Parameters
     ----------
@@ -239,14 +258,27 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
     event: :class:`threading.Event`
         The threading event object for repeated key press protection
     """
-    def __init__(self, parent, tk_globals, tk_action_vars, detected_faces, display_frame, event):
-        logger.debug("Initializing %s: (parent: %s, tk_globals: %s, tk_action_vars: %s, "
-                     "detected_faces: %s, display_frame: %s, event: %s)", self.__class__.__name__,
-                     parent, tk_globals, tk_action_vars, detected_faces, display_frame, event)
-        super().__init__(parent,
-                         bd=0,
-                         highlightthickness=0,
-                         bg=get_config().user_theme["group_panel"]["panel_background"])
+
+    def __init__(
+        self, parent, tk_globals, tk_action_vars, detected_faces, display_frame, event
+    ):
+        logger.debug(
+            "Initializing %s: (parent: %s, tk_globals: %s, tk_action_vars: %s, "
+            "detected_faces: %s, display_frame: %s, event: %s)",
+            self.__class__.__name__,
+            parent,
+            tk_globals,
+            tk_action_vars,
+            detected_faces,
+            display_frame,
+            event,
+        )
+        super().__init__(
+            parent,
+            bd=0,
+            highlightthickness=0,
+            bg=get_config().user_theme["group_panel"]["panel_background"],
+        )
         self.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, anchor=tk.E)
         self._sizes = dict(tiny=32, small=64, medium=96, large=128, extralarge=192)
 
@@ -256,8 +288,9 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
         self._display_frame = display_frame
         self._grid = Grid(self, detected_faces)
         self._view = Viewport(self, detected_faces.tk_edited)
-        self._annotation_colors = dict(mesh=self.get_muted_color("Mesh"),
-                                       box=self.control_colors["ExtractBox"])
+        self._annotation_colors = dict(
+            mesh=self.get_muted_color("Mesh"), box=self.control_colors["ExtractBox"]
+        )
 
         ContextMenu(self, detected_faces)
         self._bind_mouse_wheel_scrolling()
@@ -266,7 +299,7 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
 
     @property
     def face_size(self):
-        """ int: The currently selected thumbnail size in pixels """
+        """int: The currently selected thumbnail size in pixels"""
         scaling = get_config().scaling_factor
         size = self._sizes[self._globals.tk_faces_size.get().lower().replace(" ", "")]
         scaled = size * scaling
@@ -274,34 +307,36 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
 
     @property
     def viewport(self):
-        """ :class:`~tools.manual.faceviewer.viewport.Viewport`: The viewport area of the
-        faces viewer. """
+        """:class:`~tools.manual.faceviewer.viewport.Viewport`: The viewport area of the
+        faces viewer."""
         return self._view
 
     @property
     def grid(self):
-        """ :class:`Grid`: The grid for the current :class:`FacesViewer`. """
+        """:class:`Grid`: The grid for the current :class:`FacesViewer`."""
         return self._grid
 
     @property
     def optional_annotations(self):
-        """ dict: The values currently set for the selectable optional annotations. """
+        """dict: The values currently set for the selectable optional annotations."""
         return {opt: val.get() for opt, val in self._tk_optional_annotations.items()}
 
     @property
     def selected_mask(self):
-        """ str: The currently selected mask from the display frame control panel. """
+        """str: The currently selected mask from the display frame control panel."""
         return self._display_frame.tk_selected_mask.get().lower()
 
     @property
     def control_colors(self):
-        """ :dict: The frame Editor name as key with the current user selected hex code as
-        value. """
-        return ({key: val.get() for key, val in self._display_frame.tk_control_colors.items()})
+        """:dict: The frame Editor name as key with the current user selected hex code as
+        value."""
+        return {
+            key: val.get() for key, val in self._display_frame.tk_control_colors.items()
+        }
 
     # << CALLBACK FUNCTIONS >> #
     def _set_tk_callbacks(self, detected_faces):
-        """ Set the tkinter variable call backs.
+        """Set the tkinter variable call backs.
 
         Redraw the grid on a face size change, a filter change or on add/remove faces.
         Updates the annotation colors when user amends a color drop down.
@@ -314,10 +349,14 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
         var.trace("w", lambda *e, v=var: self.refresh_grid(v, retain_position=True))
 
         self._display_frame.tk_control_colors["Mesh"].trace(
-            "w", lambda *e: self._update_mesh_color())
+            "w", lambda *e: self._update_mesh_color()
+        )
         self._display_frame.tk_control_colors["ExtractBox"].trace(
-            "w", lambda *e: self._update_box_color())
-        self._display_frame.tk_selected_mask.trace("w", lambda *e: self._update_mask_type())
+            "w", lambda *e: self._update_box_color()
+        )
+        self._display_frame.tk_selected_mask.trace(
+            "w", lambda *e: self._update_mask_type()
+        )
 
         for opt, var in self._tk_optional_annotations.items():
             var.trace("w", lambda *e, o=opt: self._toggle_annotations(o))
@@ -325,7 +364,7 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
         self.bind("<Configure>", lambda *e: self._view.update())
 
     def refresh_grid(self, trigger_var, retain_position=False):
-        """ Recalculate the full grid and redraw. Used when the active filter pull down is used, a
+        """Recalculate the full grid and redraw. Used when the active filter pull down is used, a
         face has been added or removed, or the face thumbnail size has changed.
 
         Parameters
@@ -352,15 +391,17 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
             trigger_var.set(False)
 
     def _update_mask_type(self):
-        """ Update the displayed mask in the :class:`FacesViewer` canvas when the user changes
-        the mask type. """
+        """Update the displayed mask in the :class:`FacesViewer` canvas when the user changes
+        the mask type."""
         state = "normal" if self.optional_annotations["mask"] else "hidden"
-        logger.debug("Updating mask type: (mask_type: %s. state: %s)", self.selected_mask, state)
+        logger.debug(
+            "Updating mask type: (mask_type: %s. state: %s)", self.selected_mask, state
+        )
         self._view.toggle_mask(state, self.selected_mask)
 
     # << MOUSE HANDLING >>
     def _bind_mouse_wheel_scrolling(self):
-        """ Bind mouse wheel to scroll the :class:`FacesViewer` canvas. """
+        """Bind mouse wheel to scroll the :class:`FacesViewer` canvas."""
         if platform.system() == "Linux":
             self.bind("<Button-4>", self._scroll)
             self.bind("<Button-5>", self._scroll)
@@ -368,7 +409,7 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
             self.bind("<MouseWheel>", self._scroll)
 
     def _scroll(self, event):
-        """ Handle mouse wheel scrolling over the :class:`FacesViewer` canvas.
+        """Handle mouse wheel scrolling over the :class:`FacesViewer` canvas.
 
         Update is run in a thread to avoid repeated scroll actions stacking and locking up the GUI.
 
@@ -389,11 +430,13 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
         else:
             adjust = 1
         self._event.set()
-        thread = Thread(target=self.canvas_scroll, args=(-1 * adjust, "units", self._event))
+        thread = Thread(
+            target=self.canvas_scroll, args=(-1 * adjust, "units", self._event)
+        )
         thread.start()
 
     def canvas_scroll(self, amount, units, event):
-        """ Scroll the canvas on an up/down or page-up/page-down key press.
+        """Scroll the canvas on an up/down or page-up/page-down key press.
 
         Parameters
         ----------
@@ -411,7 +454,7 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
 
     # << OPTIONAL ANNOTATION METHODS >> #
     def _update_mesh_color(self):
-        """ Update the mesh color when user updates the control panel. """
+        """Update the mesh color when user updates the control panel."""
         color = self.get_muted_color("Mesh")
         if self._annotation_colors["mesh"] == color:
             return
@@ -424,7 +467,7 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
         self._annotation_colors["mesh"] = color
 
     def _update_box_color(self):
-        """ Update the active box color when user updates the control panel. """
+        """Update the active box color when user updates the control panel."""
         color = self.control_colors["ExtractBox"]
 
         if self._annotation_colors["box"] == color:
@@ -433,7 +476,7 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
         self._annotation_colors["box"] = color
 
     def get_muted_color(self, color_key):
-        """ Creates a muted version of the given annotation color for non-active faces.
+        """Creates a muted version of the given annotation color for non-active faces.
 
         Parameters
         ----------
@@ -443,13 +486,13 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
         scale = 0.65
         hls = np.array(colorsys.rgb_to_hls(*hex_to_rgb(self.control_colors[color_key])))
         scale = (1 - scale) + 1 if hls[1] < 120 else scale
-        hls[1] = max(0., min(256., scale * hls[1]))
+        hls[1] = max(0.0, min(256.0, scale * hls[1]))
         rgb = np.clip(np.rint(colorsys.hls_to_rgb(*hls)).astype("uint8"), 0, 255)
         retval = rgb_to_hex(rgb)
         return retval
 
     def _toggle_annotations(self, annotation):
-        """ Toggle optional annotations on or off after the user depresses an optional button.
+        """Toggle optional annotations on or off after the user depresses an optional button.
 
         Parameters
         ----------
@@ -457,15 +500,17 @@ class FacesViewer(tk.Canvas):   # pylint:disable=too-many-ancestors
             The optional annotation to toggle on or off
         """
         state = "normal" if self.optional_annotations[annotation] else "hidden"
-        logger.debug("Toggle annotation: (annotation: %s, state: %s)", annotation, state)
+        logger.debug(
+            "Toggle annotation: (annotation: %s, state: %s)", annotation, state
+        )
         if annotation == "mesh":
             self._view.toggle_mesh(state)
         if annotation == "mask":
             self._view.toggle_mask(state, self.selected_mask)
 
 
-class Grid():
-    """ Holds information on the current filtered grid layout.
+class Grid:
+    """Holds information on the current filtered grid layout.
 
     The grid keeps information on frame indices, face indices, x and y positions and detected face
     objects laid out in a numpy array to reflect the current full layout of faces within the face
@@ -478,9 +523,13 @@ class Grid():
     detected_faces: :class:`~tools.manual.detected_faces.DetectedFaces`
         The :class:`~lib.align.DetectedFace` objects for this video
     """
+
     def __init__(self, canvas, detected_faces):
-        logger.debug("Initializing %s: (detected_faces: %s)",
-                     self.__class__.__name__, detected_faces)
+        logger.debug(
+            "Initializing %s: (detected_faces: %s)",
+            self.__class__.__name__,
+            detected_faces,
+        )
         self._canvas = canvas
         self._detected_faces = detected_faces
         self._raw_indices = detected_faces.filter.raw_indices
@@ -498,26 +547,28 @@ class Grid():
 
     @property
     def face_size(self):
-        """ int: The pixel size of each thumbnail within the face viewer. """
+        """int: The pixel size of each thumbnail within the face viewer."""
         return self._face_size
 
     @property
     def is_valid(self):
-        """ bool: ``True`` if the current filter means that the grid holds faces. ``False`` if
-        there are no faces displayed in the grid. """
+        """bool: ``True`` if the current filter means that the grid holds faces. ``False`` if
+        there are no faces displayed in the grid."""
         return self._is_valid
 
     @property
     def columns_rows(self):
-        """ tuple: the (`columns`, `rows`) required to hold all display images. """
+        """tuple: the (`columns`, `rows`) required to hold all display images."""
         retval = tuple(reversed(self._grid.shape[1:])) if self._is_valid else (0, 0)
         return retval
 
     @property
     def dimensions(self):
-        """ tuple: The (`width`, `height`) required to hold all display images. """
+        """tuple: The (`width`, `height`) required to hold all display images."""
         if self._is_valid:
-            retval = tuple(dim * self._face_size for dim in reversed(self._grid.shape[1:]))
+            retval = tuple(
+                dim * self._face_size for dim in reversed(self._grid.shape[1:])
+            )
         else:
             retval = (0, 0)
         return retval
@@ -528,10 +579,17 @@ class Grid():
         currently in the viewable area.
         """
         height = self.dimensions[1]
-        visible = (max(0, floor(height * self._canvas.yview()[0]) - self._face_size),
-                   ceil(height * self._canvas.yview()[1]))
-        logger.trace("height: %s, yview: %s, face_size: %s, visible: %s",
-                     height, self._canvas.yview(), self._face_size, visible)
+        visible = (
+            max(0, floor(height * self._canvas.yview()[0]) - self._face_size),
+            ceil(height * self._canvas.yview()[1]),
+        )
+        logger.trace(
+            "height: %s, yview: %s, face_size: %s, visible: %s",
+            height,
+            self._canvas.yview(),
+            self._face_size,
+            visible,
+        )
         y_points = self._grid[3, :, 1]
         top = np.searchsorted(y_points, visible[0], side="left")
         bottom = np.searchsorted(y_points, visible[1], side="right")
@@ -555,7 +613,7 @@ class Grid():
         return retval
 
     def y_coord_from_frame(self, frame_index):
-        """ Return the y coordinate for the first face that appears in the given frame.
+        """Return the y coordinate for the first face that appears in the given frame.
 
         Parameters
         ----------
@@ -570,7 +628,7 @@ class Grid():
         return min(self._grid[3][np.where(self._grid[0] == frame_index)])
 
     def frame_has_faces(self, frame_index):
-        """ Check whether the given frame index contains any faces.
+        """Check whether the given frame index contains any faces.
 
         Parameters
         ----------
@@ -585,7 +643,7 @@ class Grid():
         return self._is_valid and np.any(self._grid[0] == frame_index)
 
     def update(self):
-        """ Update the underlying grid.
+        """Update the underlying grid.
 
         Called on initialization, on a filter change or on add/remove faces. Recalculates the
         underlying grid for the current filter view and updates the attributes :attr:`_grid`,
@@ -601,7 +659,7 @@ class Grid():
         self._canvas.yview_moveto(0.0)
 
     def _get_grid(self):
-        """ Get the grid information for faces currently displayed in the :class:`FacesViewer`.
+        """Get the grid information for faces currently displayed in the :class:`FacesViewer`.
 
         Returns
         :class:`numpy.ndarray`
@@ -616,21 +674,25 @@ class Grid():
             logger.debug("Setting grid to None for no faces.")
             self._grid = None
             return
-        x_coords = np.linspace(0,
-                               labels.shape[2] * self._face_size,
-                               num=labels.shape[2],
-                               endpoint=False,
-                               dtype="int")
-        y_coords = np.linspace(0,
-                               labels.shape[1] * self._face_size,
-                               num=labels.shape[1],
-                               endpoint=False,
-                               dtype="int")
+        x_coords = np.linspace(
+            0,
+            labels.shape[2] * self._face_size,
+            num=labels.shape[2],
+            endpoint=False,
+            dtype="int",
+        )
+        y_coords = np.linspace(
+            0,
+            labels.shape[1] * self._face_size,
+            num=labels.shape[1],
+            endpoint=False,
+            dtype="int",
+        )
         self._grid = np.array((*labels, *np.meshgrid(x_coords, y_coords)), dtype="int")
         logger.debug(self._grid.shape)
 
     def _get_labels(self):
-        """ Get the frame and face index for each grid position for the current filter.
+        """Get the frame and face index for each grid position for the current filter.
 
         Returns
         -------
@@ -649,15 +711,24 @@ class Grid():
         rows = ceil(face_count / columns)
         remainder = face_count % columns
         padding = [] if remainder == 0 else [-1 for _ in range(columns - remainder)]
-        labels = np.array((self._raw_indices["frame"] + padding,
-                           self._raw_indices["face"] + padding),
-                          dtype="int").reshape((2, rows, columns))
-        logger.debug("face-count: %s, columns: %s, rows: %s, remainder: %s, padding: %s, labels "
-                     "shape: %s", face_count, columns, rows, remainder, padding, labels.shape)
+        labels = np.array(
+            (self._raw_indices["frame"] + padding, self._raw_indices["face"] + padding),
+            dtype="int",
+        ).reshape((2, rows, columns))
+        logger.debug(
+            "face-count: %s, columns: %s, rows: %s, remainder: %s, padding: %s, labels "
+            "shape: %s",
+            face_count,
+            columns,
+            rows,
+            remainder,
+            padding,
+            labels.shape,
+        )
         return labels
 
     def _get_display_faces(self):
-        """ Get the detected faces for the current filter and arrange to grid.
+        """Get the detected faces for the current filter and arrange to grid.
 
         Returns
         -------
@@ -676,16 +747,24 @@ class Grid():
         columns, rows = self.columns_rows
         face_count = len(self._raw_indices["frame"])
         padding = [None for _ in range(face_count, columns * rows)]
-        self._display_faces = np.array([None if idx is None else current_faces[idx][face_idx]
-                                        for idx, face_idx
-                                        in zip(self._raw_indices["frame"] + padding,
-                                               self._raw_indices["face"] + padding)],
-                                       dtype="object").reshape(rows, columns)
-        logger.debug("faces: (shape: %s, dtype: %s)",
-                     self._display_faces.shape, self._display_faces.dtype)
+        self._display_faces = np.array(
+            [
+                None if idx is None else current_faces[idx][face_idx]
+                for idx, face_idx in zip(
+                    self._raw_indices["frame"] + padding,
+                    self._raw_indices["face"] + padding,
+                )
+            ],
+            dtype="object",
+        ).reshape(rows, columns)
+        logger.debug(
+            "faces: (shape: %s, dtype: %s)",
+            self._display_faces.shape,
+            self._display_faces.dtype,
+        )
 
     def transport_index_from_frame(self, frame_index):
-        """ Return the main frame's transport index for the given frame index based on the current
+        """Return the main frame's transport index for the given frame index based on the current
         filter criteria.
 
         Parameters
@@ -698,13 +777,17 @@ class Grid():
         int
             The index of the requested frame within the filtered frames view.
         """
-        retval = self._frames_list.index(frame_index) if frame_index in self._frames_list else None
+        retval = (
+            self._frames_list.index(frame_index)
+            if frame_index in self._frames_list
+            else None
+        )
         logger.trace("frame_index: %s, transport_index: %s", frame_index, retval)
         return retval
 
 
-class ContextMenu():  # pylint:disable=too-few-public-methods
-    """  Enables a right click context menu for the
+class ContextMenu:  # pylint:disable=too-few-public-methods
+    """Enables a right click context menu for the
     :class:`~tools.manual.faceviewer.frame.FacesViewer`.
 
     Parameters
@@ -714,20 +797,27 @@ class ContextMenu():  # pylint:disable=too-few-public-methods
     detected_faces: :class:`~tools.manual.detected_faces`
         The manual tool's detected faces class
     """
+
     def __init__(self, canvas, detected_faces):
-        logger.debug("Initializing: %s (canvas: %s, detected_faces: %s)",
-                     self.__class__.__name__, canvas, detected_faces)
+        logger.debug(
+            "Initializing: %s (canvas: %s, detected_faces: %s)",
+            self.__class__.__name__,
+            canvas,
+            detected_faces,
+        )
         self._canvas = canvas
         self._detected_faces = detected_faces
         self._menu = RightClickMenu(["Delete Face"], [self._delete_face])
         self._frame_index = None
         self._face_index = None
-        self._canvas.bind("<Button-2>" if platform.system() == "Darwin" else "<Button-3>",
-                          self._pop_menu)
+        self._canvas.bind(
+            "<Button-2>" if platform.system() == "Darwin" else "<Button-3>",
+            self._pop_menu,
+        )
         logger.debug("Initialized: %s", self.__class__.__name__)
 
     def _pop_menu(self, event):
-        """ Pop up the context menu on a right click mouse event.
+        """Pop up the context menu on a right click mouse event.
 
         Parameters
         ----------
@@ -735,7 +825,8 @@ class ContextMenu():  # pylint:disable=too-few-public-methods
             The mouse event that has triggered the pop up menu
         """
         frame_idx, face_idx = self._canvas.viewport.face_from_point(
-            self._canvas.canvasx(event.x), self._canvas.canvasy(event.y))[:2]
+            self._canvas.canvasx(event.x), self._canvas.canvasy(event.y)
+        )[:2]
         if frame_idx == -1:
             logger.trace("No valid item under mouse")
             self._frame_index = self._face_index = None
@@ -746,8 +837,11 @@ class ContextMenu():  # pylint:disable=too-few-public-methods
         self._menu.popup(event)
 
     def _delete_face(self):
-        """ Delete the selected face on a right click mouse delete action. """
-        logger.trace("Right click delete received. frame_id: %s, face_id: %s",
-                     self._frame_index, self._face_index)
+        """Delete the selected face on a right click mouse delete action."""
+        logger.trace(
+            "Right click delete received. frame_id: %s, face_id: %s",
+            self._frame_index,
+            self._face_index,
+        )
         self._detected_faces.update.delete(self._frame_index, self._face_index)
         self._frame_index = self._face_index = None

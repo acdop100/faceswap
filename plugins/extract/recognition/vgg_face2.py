@@ -1,31 +1,34 @@
 #!/usr/bin python3
 """ VGG_Face2 inference and sorting """
+from __future__ import annotations
 
 import logging
 import sys
-
-from typing import cast, Dict, Generator, List, Tuple, Optional
+from collections.abc import Generator
+from typing import cast
+from typing import Dict
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import Tuple
 
 import numpy as np
 import psutil
-from fastcluster import linkage, linkage_vector
+from fastcluster import linkage
+from fastcluster import linkage_vector
 
+from ._base import BatchType
+from ._base import Identity
+from ._base import RecogBatch
 from lib.model.layers import L2_normalize
 from lib.model.session import KSession
 from lib.utils import FaceswapError
-from ._base import BatchType, RecogBatch, Identity
-
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class Recognition(Identity):
-    """ VGG Face feature extraction.
+    """VGG Face feature extraction.
 
     Extracts feature vectors from faces in order to compare similarity.
 
@@ -45,7 +48,9 @@ class Recognition(Identity):
         logger.debug("Initializing %s", self.__class__.__name__)
         git_model_id = 10
         model_filename = "vggface2_resnet50_v2.h5"
-        super().__init__(git_model_id=git_model_id, model_filename=model_filename, **kwargs)
+        super().__init__(
+            git_model_id=git_model_id, model_filename=model_filename, **kwargs
+        )
         self.model: KSession
         self.name: str = "VGGFace2"
         self.input_size = 224
@@ -62,27 +67,33 @@ class Recognition(Identity):
 
     # <<< GET MODEL >>> #
     def init_model(self) -> None:
-        """ Initialize VGG Face 2 Model. """
+        """Initialize VGG Face 2 Model."""
         assert isinstance(self.model_path, str)
-        model_kwargs = dict(custom_objects={'L2_normalize': L2_normalize})
-        self.model = KSession(self.name,
-                              self.model_path,
-                              model_kwargs=model_kwargs,
-                              allow_growth=self.config["allow_growth"],
-                              exclude_gpus=self._exclude_gpus,
-                              cpu_mode=self.config["cpu"])
+        model_kwargs = dict(custom_objects={"L2_normalize": L2_normalize})
+        self.model = KSession(
+            self.name,
+            self.model_path,
+            model_kwargs=model_kwargs,
+            allow_growth=self.config["allow_growth"],
+            exclude_gpus=self._exclude_gpus,
+            cpu_mode=self.config["cpu"],
+        )
         self.model.load_model()
 
     def process_input(self, batch: BatchType) -> None:
-        """ Compile the detected faces for prediction """
+        """Compile the detected faces for prediction"""
         assert isinstance(batch, RecogBatch)
-        batch.feed = np.array([cast(np.ndarray, feed.face)[..., :3]
-                               for feed in batch.feed_faces],
-                              dtype="float32") - self._average_img
+        batch.feed = (
+            np.array(
+                [cast(np.ndarray, feed.face)[..., :3] for feed in batch.feed_faces],
+                dtype="float32",
+            )
+            - self._average_img
+        )
         logger.trace("feed shape: %s", batch.feed.shape)  # type:ignore
 
     def predict(self, feed: np.ndarray) -> np.ndarray:
-        """ Return encodings for given image from vgg_face2.
+        """Return encodings for given image from vgg_face2.
 
         Parameters
         ----------
@@ -99,12 +110,12 @@ class Recognition(Identity):
         return retval
 
     def process_output(self, batch: BatchType) -> None:
-        """ No output processing for  vgg_face2 """
+        """No output processing for  vgg_face2"""
         return
 
 
-class Cluster():  # pylint: disable=too-few-public-methods
-    """ Cluster the outputs from a VGG-Face 2 Model
+class Cluster:  # pylint: disable=too-few-public-methods
+    """Cluster the outputs from a VGG-Face 2 Model
 
     Parameters
     ----------
@@ -119,17 +130,24 @@ class Cluster():  # pylint: disable=too-few-public-methods
         The threshold to start creating bins for. Set to ``None`` to disable binning
     """
 
-    def __init__(self,
-                 predictions: np.ndarray,
-                 method: Literal["single", "centroid", "median", "ward"],
-                 threshold: Optional[float] = None) -> None:
-        logger.debug("Initializing: %s (predictions: %s, method: %s, threshold: %s)",
-                     self.__class__.__name__, predictions.shape, method, threshold)
+    def __init__(
+        self,
+        predictions: np.ndarray,
+        method: Literal["single", "centroid", "median", "ward"],
+        threshold: float | None = None,
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (predictions: %s, method: %s, threshold: %s)",
+            self.__class__.__name__,
+            predictions.shape,
+            method,
+            threshold,
+        )
         self._num_predictions = predictions.shape[0]
 
         self._should_output_bins = threshold is not None
         self._threshold = 0.0 if threshold is None else threshold
-        self._bins: Dict[int, int] = {}
+        self._bins: dict[int, int] = {}
         self._iterator = self._integer_iterator()
 
         self._result_linkage = self._do_linkage(predictions, method)
@@ -137,14 +155,14 @@ class Cluster():  # pylint: disable=too-few-public-methods
 
     @classmethod
     def _integer_iterator(cls) -> Generator[int, None, None]:
-        """ Iterator that just yields consecutive integers """
+        """Iterator that just yields consecutive integers"""
         i = -1
         while True:
             i += 1
             yield i
 
     def _use_vector_linkage(self, dims: int) -> bool:
-        """ Calculate the RAM that will be required to sort these images and select the appropriate
+        """Calculate the RAM that will be required to sort these images and select the appropriate
         clustering method.
 
         From fastcluster documentation:
@@ -169,31 +187,42 @@ class Cluster():  # pylint: disable=too-few-public-methods
         divider = 1024 * 1024  # bytes to MB
 
         free_ram = psutil.virtual_memory().available / divider
-        linkage_required = (((self._num_predictions ** 2) * np_float) / 1.8) / divider
+        linkage_required = (((self._num_predictions**2) * np_float) / 1.8) / divider
         vector_required = ((self._num_predictions * dims) * np_float) / divider
-        logger.debug("free_ram: %sMB, linkage_required: %sMB, vector_required: %sMB",
-                     int(free_ram), int(linkage_required), int(vector_required))
+        logger.debug(
+            "free_ram: %sMB, linkage_required: %sMB, vector_required: %sMB",
+            int(free_ram),
+            int(linkage_required),
+            int(vector_required),
+        )
 
         if linkage_required < free_ram:
             logger.verbose("Using linkage method")  # type:ignore
             retval = False
         elif vector_required < free_ram:
-            logger.warning("Not enough RAM to perform linkage clustering. Using vector "
-                           "clustering. This will be significantly slower. Free RAM: %sMB. "
-                           "Required for linkage method: %sMB",
-                           int(free_ram), int(linkage_required))
+            logger.warning(
+                "Not enough RAM to perform linkage clustering. Using vector "
+                "clustering. This will be significantly slower. Free RAM: %sMB. "
+                "Required for linkage method: %sMB",
+                int(free_ram),
+                int(linkage_required),
+            )
             retval = True
         else:
-            raise FaceswapError("Not enough RAM available to sort faces. Try reducing "
-                                f"the size of  your dataset. Free RAM: {int(free_ram)}MB. "
-                                f"Required RAM: {int(vector_required)}MB")
+            raise FaceswapError(
+                "Not enough RAM available to sort faces. Try reducing "
+                f"the size of  your dataset. Free RAM: {int(free_ram)}MB. "
+                f"Required RAM: {int(vector_required)}MB"
+            )
         logger.debug(retval)
         return retval
 
-    def _do_linkage(self,
-                    predictions: np.ndarray,
-                    method: Literal["single", "centroid", "median", "ward"]) -> np.ndarray:
-        """ Use FastCluster to perform vector or standard linkage
+    def _do_linkage(
+        self,
+        predictions: np.ndarray,
+        method: Literal["single", "centroid", "median", "ward"],
+    ) -> np.ndarray:
+        """Use FastCluster to perform vector or standard linkage
 
         Parameters
         ----------
@@ -216,10 +245,10 @@ class Cluster():  # pylint: disable=too-few-public-methods
         logger.debug("Linkage shape: %s", retval.shape)
         return retval
 
-    def _process_leaf_node(self,
-                           current_index: int,
-                           current_bin: int) -> List[Tuple[int, int]]:
-        """ Process the output when we have hit a leaf node """
+    def _process_leaf_node(
+        self, current_index: int, current_bin: int
+    ) -> list[tuple[int, int]]:
+        """Process the output when we have hit a leaf node"""
         if not self._should_output_bins:
             return [(current_index, 0)]
 
@@ -228,12 +257,10 @@ class Cluster():  # pylint: disable=too-few-public-methods
             self._bins[current_bin] = next_val
         return [(current_index, self._bins[current_bin])]
 
-    def _get_bin(self,
-                 tree: np.ndarray,
-                 points: int,
-                 current_index: int,
-                 current_bin: int) -> int:
-        """ Obtain the bin that we are currently in.
+    def _get_bin(
+        self, tree: np.ndarray, points: int, current_index: int, current_bin: int
+    ) -> int:
+        """Obtain the bin that we are currently in.
 
         If we are not currently below the threshold for binning, get a new bin ID from the integer
         iterator.
@@ -259,12 +286,10 @@ class Cluster():  # pylint: disable=too-few-public-methods
             logger.debug("Creating new bin ID: %s", current_bin)
         return current_bin
 
-    def _seriation(self,
-                   tree: np.ndarray,
-                   points: int,
-                   current_index: int,
-                   current_bin: int = 0) -> List[Tuple[int, int]]:
-        """ Seriation method for sorted similarity.
+    def _seriation(
+        self, tree: np.ndarray, points: int, current_index: int, current_bin: int = 0
+    ) -> list[tuple[int, int]]:
+        """Seriation method for sorted similarity.
 
         Seriation computes the order implied by a hierarchical tree (dendrogram).
 
@@ -290,16 +315,16 @@ class Cluster():  # pylint: disable=too-few-public-methods
         if self._should_output_bins:
             current_bin = self._get_bin(tree, points, current_index, current_bin)
 
-        left = int(tree[current_index-points, 0])
-        right = int(tree[current_index-points, 1])
+        left = int(tree[current_index - points, 0])
+        right = int(tree[current_index - points, 1])
 
         serate_left = self._seriation(tree, points, left, current_bin=current_bin)
         serate_right = self._seriation(tree, points, right, current_bin=current_bin)
 
         return serate_left + serate_right  # type: ignore
 
-    def __call__(self) -> List[Tuple[int, int]]:
-        """ Process the linkages.
+    def __call__(self) -> list[tuple[int, int]]:
+        """Process the linkages.
 
         Transforms a distance matrix into a sorted distance matrix according to the order implied
         by the hierarchical tree (dendrogram).
@@ -310,10 +335,14 @@ class Cluster():  # pylint: disable=too-few-public-methods
             List of indices with the order implied by the hierarchical tree or list of tuples of
             (`index`, `bin`) if a binning threshold was provided
         """
-        logger.info("Sorting face distances. Depending on your dataset this may take some time...")
+        logger.info(
+            "Sorting face distances. Depending on your dataset this may take some time..."
+        )
         if self._threshold:
             self._threshold = self._result_linkage[:, 2].max() * self._threshold
-        result_order = self._seriation(self._result_linkage,
-                                       self._num_predictions,
-                                       self._num_predictions + self._num_predictions - 2)
+        result_order = self._seriation(
+            self._result_linkage,
+            self._num_predictions,
+            self._num_predictions + self._num_predictions - 2,
+        )
         return result_order

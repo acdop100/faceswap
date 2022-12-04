@@ -3,18 +3,21 @@
 
     Checks for installed Conda / Pip packages and updates accordingly
 """
+from __future__ import annotations
+
 import logging
 import os
 import sys
 
 from lib.logger import log_setup
-from setup import Environment, Install
+from setup import Environment
+from setup import Install
 
 logger = logging.getLogger(__name__)
 
 
 def main(is_gui=False) -> None:
-    """ Check for and update dependencies
+    """Check for and update dependencies
 
     Parameters
     ----------
@@ -29,6 +32,8 @@ def main(is_gui=False) -> None:
 
 
 if __name__ == "__main__":
-    logfile = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "faceswap_update.log")
+    logfile = os.path.join(
+        os.path.dirname(os.path.realpath(sys.argv[0])), "faceswap_update.log"
+    )
     log_setup("INFO", logfile, "setup")
     main()

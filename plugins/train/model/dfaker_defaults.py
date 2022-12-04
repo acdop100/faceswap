@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = "Dfaker Model (Adapted from https://github.com/dfaker/df)"
@@ -48,10 +49,12 @@ _DEFAULTS = dict(
     output_size=dict(
         default=128,
         info="Resolution (in pixels) of the output image to generate on.\n"
-             "BE AWARE Larger resolution will dramatically increase VRAM requirements.\n"
-             "Must be 128 or 256.",
+        "BE AWARE Larger resolution will dramatically increase VRAM requirements.\n"
+        "Must be 128 or 256.",
         datatype=int,
         rounding=128,
         min_max=(128, 256),
         group="size",
-        fixed=True))
+        fixed=True,
+    )
+)

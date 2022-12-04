@@ -1,21 +1,23 @@
 #!/usr/bin/python
 """ Logging Functions for Faceswap. """
+from __future__ import annotations
+
 import collections
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import platform
 import re
 import sys
 import time
 import traceback
-
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from typing import Union
 
 
 class FaceswapLogger(logging.Logger):
-    """ A standard :class:`logging.logger` with additional "verbose" and "trace" levels added. """
+    """A standard :class:`logging.logger` with additional "verbose" and "trace" levels added."""
+
     def __init__(self, name: str) -> None:
         for new_level in (("VERBOSE", 15), ("TRACE", 5)):
             level_name, level_num = new_level
@@ -27,7 +29,7 @@ class FaceswapLogger(logging.Logger):
 
     def verbose(self, msg: str, *args, **kwargs) -> None:
         # pylint:disable=wrong-spelling-in-docstring
-        """ Create a log message at severity level 15.
+        """Create a log message at severity level 15.
 
         Parameters
         ----------
@@ -43,7 +45,7 @@ class FaceswapLogger(logging.Logger):
 
     def trace(self, msg: str, *args, **kwargs) -> None:
         # pylint:disable=wrong-spelling-in-docstring
-        """ Create a log message at severity level 5.
+        """Create a log message at severity level 5.
 
         Parameters
         ----------
@@ -59,7 +61,7 @@ class FaceswapLogger(logging.Logger):
 
 
 class ColoredFormatter(logging.Formatter):
-    """ Overrides the stand :class:`logging.Formatter` to enable colored labels for message level
+    """Overrides the stand :class:`logging.Formatter` to enable colored labels for message level
     labels on supported platforms
 
     Parameters
@@ -73,20 +75,23 @@ class ColoredFormatter(logging.Formatter):
     kwargs: dict
         Standard :class:`logging.Formatter` keyword arguments
     """
+
     def __init__(self, fmt: str, pad_newlines: bool = False, **kwargs) -> None:
         super().__init__(fmt, **kwargs)
         self._use_color = self._get_color_compatibility()
-        self._level_colors = dict(CRITICAL="\033[31m",  # red
-                                  ERROR="\033[31m",  # red
-                                  WARNING="\033[33m",  # yellow
-                                  INFO="\033[32m",  # green
-                                  VERBOSE="\033[34m")  # blue
+        self._level_colors = dict(
+            CRITICAL="\033[31m",  # red
+            ERROR="\033[31m",  # red
+            WARNING="\033[33m",  # yellow
+            INFO="\033[32m",  # green
+            VERBOSE="\033[34m",
+        )  # blue
         self._default_color = "\033[0m"
         self._newline_padding = self._get_newline_padding(pad_newlines, fmt)
 
     @classmethod
     def _get_color_compatibility(cls) -> bool:
-        """ Return whether the system supports color ansi codes. Most OSes do other than Windows
+        """Return whether the system supports color ansi codes. Most OSes do other than Windows
         below Windows 10 version 1511.
 
         Returns
@@ -105,7 +110,7 @@ class ColoredFormatter(logging.Formatter):
         return False
 
     def _get_newline_padding(self, pad_newlines: bool, fmt: str) -> int:
-        """ Parses the format string to obtain padding for newlines if requested
+        """Parses the format string to obtain padding for newlines if requested
 
         Parameters
         ----------
@@ -123,7 +128,7 @@ class ColoredFormatter(logging.Formatter):
         if not pad_newlines:
             return 0
         msg_idx = fmt.find("%(message)") + 1
-        filtered = fmt[:msg_idx - 1]
+        filtered = fmt[: msg_idx - 1]
         spaces = filtered.count(" ")
         pads = [int(pad.replace("s", "")) for pad in re.findall(r"\ds", filtered)]
         if "asctime" in filtered:
@@ -131,7 +136,7 @@ class ColoredFormatter(logging.Formatter):
         return sum(pads) + spaces
 
     def _get_sample_time_string(self) -> int:
-        """ Obtain a sample time string and calculate correct padding.
+        """Obtain a sample time string and calculate correct padding.
 
         This may be inaccurate wheb ticking over an integer from single to double digits, but that
         shouldn't be a huge issue.
@@ -143,14 +148,16 @@ class ColoredFormatter(logging.Formatter):
         """
         sample_time = time.time()
         date_format = self.datefmt if self.datefmt else self.default_time_format
-        datestring = time.strftime(date_format, logging.Formatter.converter(sample_time))
+        datestring = time.strftime(
+            date_format, logging.Formatter.converter(sample_time)
+        )
         if not self.datefmt and self.default_msec_format:
             msecs = (sample_time - int(sample_time)) * 1000
             datestring = self.default_msec_format % (datestring, msecs)
         return len(datestring)
 
     def format(self, record: logging.LogRecord) -> str:
-        """ Color the log message level if supported otherwise return the standard log message.
+        """Color the log message level if supported otherwise return the standard log message.
 
         Parameters
         ----------
@@ -165,17 +172,19 @@ class ColoredFormatter(logging.Formatter):
         formatted = super().format(record)
         levelname = record.levelname
         if self._use_color and levelname in self._level_colors:
-            formatted = re.sub(levelname,
-                               f"{self._level_colors[levelname]}{levelname}{self._default_color}",
-                               formatted,
-                               1)
+            formatted = re.sub(
+                levelname,
+                f"{self._level_colors[levelname]}{levelname}{self._default_color}",
+                formatted,
+                1,
+            )
         if self._newline_padding:
             formatted = formatted.replace("\n", f"\n{' ' * self._newline_padding}")
         return formatted
 
 
 class FaceswapFormatter(logging.Formatter):
-    """ Overrides the standard :class:`logging.Formatter`.
+    """Overrides the standard :class:`logging.Formatter`.
 
     Strip newlines from incoming log messages.
 
@@ -183,7 +192,7 @@ class FaceswapFormatter(logging.Formatter):
     """
 
     def format(self, record: logging.LogRecord) -> str:
-        """ Strip new lines from log records and rewrite certain warning messages to debug level.
+        """Strip new lines from log records and rewrite certain warning messages to debug level.
 
         Parameters
         ----------
@@ -222,7 +231,7 @@ class FaceswapFormatter(logging.Formatter):
 
     @classmethod
     def _rewrite_warnings(cls, record: logging.LogRecord) -> logging.LogRecord:
-        """ Change certain warning messages from WARNING to DEBUG to avoid passing non-important
+        """Change certain warning messages from WARNING to DEBUG to avoid passing non-important
         information to output.
 
         Parameters
@@ -236,15 +245,21 @@ class FaceswapFormatter(logging.Formatter):
             The log rewritten or untouched record
 
         """
-        if record.levelno == 30 and record.funcName == "warn" and record.module == "ag_logging":
+        if (
+            record.levelno == 30
+            and record.funcName == "warn"
+            and record.module == "ag_logging"
+        ):
             # TF 2.3 in Conda is imported with the wrong gast(0.4 when 0.3.3 should be used). This
             # causes warnings in autograph. They don't appear to impact performance so de-elevate
             # warning to debug
             record.levelno = 10
             record.levelname = "DEBUG"
 
-        if record.levelno == 30 and (record.funcName == "_tfmw_add_deprecation_warning" or
-                                     record.module in ("deprecation", "deprecation_wrapper")):
+        if record.levelno == 30 and (
+            record.funcName == "_tfmw_add_deprecation_warning"
+            or record.module in ("deprecation", "deprecation_wrapper")
+        ):
             # Keras Deprecations.
             record.levelno = 10
             record.levelname = "DEBUG"
@@ -253,7 +268,7 @@ class FaceswapFormatter(logging.Formatter):
 
     @classmethod
     def _lower_external(cls, record: logging.LogRecord) -> logging.LogRecord:
-        """ Some external libs log at a higher level than we would really like, so lower their
+        """Some external libs log at a higher level than we would really like, so lower their
         log level.
 
         Specifically: Matplotlib font properties
@@ -268,8 +283,11 @@ class FaceswapFormatter(logging.Formatter):
         :class:`logging.LogRecord`
             The log rewritten or untouched record
         """
-        if (record.levelno == 20 and record.funcName == "__init__"
-                and record.module == "font_manager"):
+        if (
+            record.levelno == 20
+            and record.funcName == "__init__"
+            and record.module == "font_manager"
+        ):
             # Matplotlib font manager
             record.levelno = 10
             record.levelname = "DEBUG"
@@ -279,10 +297,10 @@ class FaceswapFormatter(logging.Formatter):
 
 class RollingBuffer(collections.deque):
     """File-like that keeps a certain number of lines of text in memory for writing out to the
-    crash log. """
+    crash log."""
 
     def write(self, buffer: str) -> None:
-        """ Splits lines from the incoming buffer and writes them out to the rolling buffer.
+        """Splits lines from the incoming buffer and writes them out to the rolling buffer.
 
         Parameters
         ----------
@@ -294,11 +312,11 @@ class RollingBuffer(collections.deque):
 
 
 class TqdmHandler(logging.StreamHandler):
-    """ Overrides :class:`logging.StreamHandler` to use :func:`tqdm.tqdm.write` rather than writing
-    to :func:`sys.stderr` so that log messages do not mess up tqdm progress bars. """
+    """Overrides :class:`logging.StreamHandler` to use :func:`tqdm.tqdm.write` rather than writing
+    to :func:`sys.stderr` so that log messages do not mess up tqdm progress bars."""
 
     def emit(self, record: logging.LogRecord) -> None:
-        """ Format the incoming message and pass to :func:`tqdm.tqdm.write`.
+        """Format the incoming message and pass to :func:`tqdm.tqdm.write`.
 
         Parameters
         ----------
@@ -307,12 +325,13 @@ class TqdmHandler(logging.StreamHandler):
         """
         # tqdm is imported here as it won't be installed when setup.py is running
         from tqdm import tqdm  # pylint:disable=import-outside-toplevel
+
         msg = self.format(record)
         tqdm.write(msg)
 
 
 def _set_root_logger(loglevel: int = logging.INFO) -> logging.Logger:
-    """ Setup the root logger.
+    """Setup the root logger.
 
     Parameters
     ----------
@@ -330,7 +349,7 @@ def _set_root_logger(loglevel: int = logging.INFO) -> logging.Logger:
 
 
 def log_setup(loglevel, log_file: str, command: str, is_gui: bool = False) -> None:
-    """ Set up logging for Faceswap.
+    """Set up logging for Faceswap.
 
     Sets up the root logger, the formatting for the crash logger and the file logger, and sets up
     the crash, file and stream log handlers.
@@ -347,20 +366,24 @@ def log_setup(loglevel, log_file: str, command: str, is_gui: bool = False) -> No
     is_gui: bool, optional
         Whether Faceswap is running in the GUI or not. Dictates where the stream handler should
         output messages to. Default: ``False``
-     """
+    """
     numeric_loglevel = get_loglevel(loglevel)
     root_loglevel = min(logging.DEBUG, numeric_loglevel)
     rootlogger = _set_root_logger(loglevel=root_loglevel)
 
     if command == "setup":
-        log_format = FaceswapFormatter("%(asctime)s %(module)-16s %(funcName)-30s %(levelname)-8s "
-                                       "%(message)s", datefmt="%m/%d/%Y %H:%M:%S")
+        log_format = FaceswapFormatter(
+            "%(asctime)s %(module)-16s %(funcName)-30s %(levelname)-8s " "%(message)s",
+            datefmt="%m/%d/%Y %H:%M:%S",
+        )
         s_handler = _stream_setup_handler(numeric_loglevel)
         f_handler = _file_handler(root_loglevel, log_file, log_format, command)
     else:
-        log_format = FaceswapFormatter("%(asctime)s %(processName)-15s %(threadName)-30s "
-                                       "%(module)-15s %(funcName)-30s %(levelname)-8s %(message)s",
-                                       datefmt="%m/%d/%Y %H:%M:%S")
+        log_format = FaceswapFormatter(
+            "%(asctime)s %(processName)-15s %(threadName)-30s "
+            "%(module)-15s %(funcName)-30s %(levelname)-8s %(message)s",
+            datefmt="%m/%d/%Y %H:%M:%S",
+        )
         s_handler = _stream_handler(numeric_loglevel, is_gui)
         f_handler = _file_handler(numeric_loglevel, log_file, log_format, command)
 
@@ -373,11 +396,10 @@ def log_setup(loglevel, log_file: str, command: str, is_gui: bool = False) -> No
         logging.info("Log level set to: %s", loglevel.upper())
 
 
-def _file_handler(loglevel,
-                  log_file: str,
-                  log_format: FaceswapFormatter,
-                  command: str) -> RotatingFileHandler:
-    """ Add a rotating file handler for the current Faceswap session. 1 backup is always kept.
+def _file_handler(
+    loglevel, log_file: str, log_format: FaceswapFormatter, command: str
+) -> RotatingFileHandler:
+    """Add a rotating file handler for the current Faceswap session. 1 backup is always kept.
 
     Parameters
     ----------
@@ -399,7 +421,9 @@ def _file_handler(loglevel,
     if log_file:
         filename = log_file
     else:
-        filename = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "faceswap")
+        filename = os.path.join(
+            os.path.dirname(os.path.realpath(sys.argv[0])), "faceswap"
+        )
         # Windows has issues sharing the log file with sub-processes, so log GUI separately
         filename += "_gui.log" if command == "gui" else ".log"
 
@@ -412,8 +436,8 @@ def _file_handler(loglevel,
     return handler
 
 
-def _stream_handler(loglevel: int, is_gui: bool) -> Union[logging.StreamHandler, TqdmHandler]:
-    """ Add a stream handler for the current Faceswap session. The stream handler will only ever
+def _stream_handler(loglevel: int, is_gui: bool) -> logging.StreamHandler | TqdmHandler:
+    """Add a stream handler for the current Faceswap session. The stream handler will only ever
     output at a maximum of VERBOSE level to avoid spamming the console.
 
     Parameters
@@ -431,8 +455,9 @@ def _stream_handler(loglevel: int, is_gui: bool) -> Union[logging.StreamHandler,
     """
     # Don't set stdout to lower than verbose
     loglevel = max(loglevel, 15)
-    log_format = FaceswapFormatter("%(asctime)s %(levelname)-8s %(message)s",
-                                   datefmt="%m/%d/%Y %H:%M:%S")
+    log_format = FaceswapFormatter(
+        "%(asctime)s %(levelname)-8s %(message)s", datefmt="%m/%d/%Y %H:%M:%S"
+    )
 
     if is_gui:
         # tqdm.write inserts extra lines in the GUI, so use standard output as
@@ -446,7 +471,7 @@ def _stream_handler(loglevel: int, is_gui: bool) -> Union[logging.StreamHandler,
 
 
 def _stream_setup_handler(loglevel: int) -> logging.StreamHandler:
-    """ Add a stream handler for faceswap's setup.py script
+    """Add a stream handler for faceswap's setup.py script
     This stream handler outputs a limited set of easy to use information using colored labels
     if available. It will only ever output at a minimum of INFO level
 
@@ -469,7 +494,7 @@ def _stream_setup_handler(loglevel: int) -> logging.StreamHandler:
 
 
 def _crash_handler(log_format: FaceswapFormatter) -> logging.StreamHandler:
-    """ Add a handler that stores the last 100 debug lines to :attr:'_DEBUG_BUFFER' for use in
+    """Add a handler that stores the last 100 debug lines to :attr:'_DEBUG_BUFFER' for use in
     crash reports.
 
     Parameters
@@ -489,7 +514,7 @@ def _crash_handler(log_format: FaceswapFormatter) -> logging.StreamHandler:
 
 
 def get_loglevel(loglevel: str) -> int:
-    """ Check whether a valid log level has been supplied, and return the numeric log level that
+    """Check whether a valid log level has been supplied, and return the numeric log level that
     corresponds to the given string level.
 
     Parameters
@@ -509,7 +534,7 @@ def get_loglevel(loglevel: str) -> int:
 
 
 def crash_log() -> str:
-    """ On a crash, write out the contents of :func:`_DEBUG_BUFFER` containing the last 100 lines
+    """On a crash, write out the contents of :func:`_DEBUG_BUFFER` containing the last 100 lines
     of debug messages to a crash report in the root Faceswap folder.
 
     Returns
@@ -519,13 +544,17 @@ def crash_log() -> str:
     """
     original_traceback = traceback.format_exc().encode("utf-8")
     path = os.path.dirname(os.path.realpath(sys.argv[0]))
-    filename = os.path.join(path, datetime.now().strftime("crash_report.%Y.%m.%d.%H%M%S%f.log"))
+    filename = os.path.join(
+        path, datetime.now().strftime("crash_report.%Y.%m.%d.%H%M%S%f.log")
+    )
     freeze_log = [line.encode("utf-8") for line in _DEBUG_BUFFER]
     try:
         from lib.sysinfo import sysinfo  # pylint:disable=import-outside-toplevel
     except Exception:  # pylint:disable=broad-except
-        sysinfo = ("\n\nThere was an error importing System Information from lib.sysinfo. This is "
-                   f"probably a bug which should be fixed:\n{traceback.format_exc()}")
+        sysinfo = (
+            "\n\nThere was an error importing System Information from lib.sysinfo. This is "
+            f"probably a bug which should be fixed:\n{traceback.format_exc()}"
+        )
     with open(filename, "wb") as outfile:
         outfile.writelines(freeze_log)
         outfile.write(original_traceback)
@@ -537,8 +566,8 @@ _OLD_FACTORY = logging.getLogRecordFactory()
 
 
 def _faceswap_logrecord(*args, **kwargs) -> logging.LogRecord:
-    """ Add a flag to :class:`logging.LogRecord` to not strip formatting from particular
-    records. """
+    """Add a flag to :class:`logging.LogRecord` to not strip formatting from particular
+    records."""
     record = _OLD_FACTORY(*args, **kwargs)
     record.strip_spaces = True  # type:ignore
     return record

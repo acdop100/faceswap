@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """ Dynamically import the correct GPU Stats library based on the faceswap backend and the machine
 being used. """
+from __future__ import annotations
 
 import platform
 
-from lib.utils import get_backend
-
 from ._base import set_exclude_devices  # noqa
+from lib.utils import get_backend
 
 backend = get_backend()
 

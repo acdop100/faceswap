@@ -2,25 +2,39 @@
 """ DeepFaceLab SAE Model
     Based on https://github.com/iperov/DeepFaceLab
 """
+from __future__ import annotations
+
 import logging
+
 import numpy as np
 
-from lib.model.nn_blocks import Conv2DOutput, Conv2DBlock, ResidualBlock, UpscaleBlock
+from ._base import KerasModel
+from ._base import ModelBase
+from lib.model.nn_blocks import Conv2DBlock
+from lib.model.nn_blocks import Conv2DOutput
+from lib.model.nn_blocks import ResidualBlock
+from lib.model.nn_blocks import UpscaleBlock
 from lib.utils import get_backend
-
-from ._base import ModelBase, KerasModel
 
 if get_backend() == "amd":
     from keras.layers import Concatenate, Dense, Flatten, Input, LeakyReLU, Reshape
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.layers import Concatenate, Dense, Flatten, Input, LeakyReLU, Reshape  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.layers import (
+        Concatenate,
+        Dense,
+        Flatten,
+        Input,
+        LeakyReLU,
+        Reshape,
+    )  # noqa pylint:disable=import-error,no-name-in-module
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class Model(ModelBase):
-    """ SAE Model from DFL """
+    """SAE Model from DFL"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_shape = (self.config["input_size"], self.config["input_size"], 3)
@@ -34,29 +48,34 @@ class Model(ModelBase):
 
     @property
     def model_name(self):
-        """ str: The name of the keras model. Varies depending on selected architecture. """
+        """str: The name of the keras model. Varies depending on selected architecture."""
         return f"{self.name}_{self.architecture}"
 
     @property
     def ae_dims(self):
-        """ Set the Autoencoder Dimensions or set to default """
+        """Set the Autoencoder Dimensions or set to default"""
         retval = self.config["autoencoder_dims"]
         if retval == 0:
             retval = 256 if self.architecture == "liae" else 512
         return retval
 
     def _patch_weights_management(self):
-        """ Patch in the correct encoder name into the config dictionary for freezing and loading
+        """Patch in the correct encoder name into the config dictionary for freezing and loading
         weights based on architecture.
         """
         self.config["freeze_layers"] = [f"encoder_{self.architecture}"]
         self.config["load_layers"] = [f"encoder_{self.architecture}"]
-        logger.debug("Patched encoder layers to config: %s",
-                     {k: v for k, v in self.config.items()
-                      if k in ("freeze_layers", "load_layers")})
+        logger.debug(
+            "Patched encoder layers to config: %s",
+            {
+                k: v
+                for k, v in self.config.items()
+                if k in ("freeze_layers", "load_layers")
+            },
+        )
 
     def build_model(self, inputs):
-        """ Build the DFL-SAE Model """
+        """Build the DFL-SAE Model"""
         encoder = getattr(self, f"encoder_{self.architecture}")()
         enc_output_shape = encoder.output_shape[1:]
         encoder_a = encoder(inputs[0])
@@ -64,24 +83,30 @@ class Model(ModelBase):
 
         if self.architecture == "liae":
             inter_both = self.inter_liae("both", enc_output_shape)
-            int_output_shape = (np.array(inter_both.output_shape[1:]) * (1, 1, 2)).tolist()
+            int_output_shape = (
+                np.array(inter_both.output_shape[1:]) * (1, 1, 2)
+            ).tolist()
 
             inter_a = Concatenate()([inter_both(encoder_a), inter_both(encoder_a)])
-            inter_b = Concatenate()([self.inter_liae("b", enc_output_shape)(encoder_b),
-                                     inter_both(encoder_b)])
+            inter_b = Concatenate()(
+                [
+                    self.inter_liae("b", enc_output_shape)(encoder_b),
+                    inter_both(encoder_b),
+                ]
+            )
 
             decoder = self.decoder("both", int_output_shape)
             outputs = [decoder(inter_a), decoder(inter_b)]
         else:
-            outputs = [self.decoder("a", enc_output_shape)(encoder_a),
-                       self.decoder("b", enc_output_shape)(encoder_b)]
-        autoencoder = KerasModel(inputs,
-                                 outputs,
-                                 name=self.model_name)
+            outputs = [
+                self.decoder("a", enc_output_shape)(encoder_a),
+                self.decoder("b", enc_output_shape)(encoder_b),
+            ]
+        autoencoder = KerasModel(inputs, outputs, name=self.model_name)
         return autoencoder
 
     def encoder_df(self):
-        """ DFL SAE DF Encoder Network"""
+        """DFL SAE DF Encoder Network"""
         input_ = Input(shape=self.input_shape)
         dims = self.input_shape[-1] * self.encoder_dim
         lowest_dense_res = self.input_shape[0] // 16
@@ -96,7 +121,7 @@ class Model(ModelBase):
         return KerasModel(input_, var_x, name="encoder_df")
 
     def encoder_liae(self):
-        """ DFL SAE LIAE Encoder Network """
+        """DFL SAE LIAE Encoder Network"""
         input_ = Input(shape=self.input_shape)
         dims = self.input_shape[-1] * self.encoder_dim
         var_x = Conv2DBlock(dims, activation="leakyrelu")(input_)
@@ -107,7 +132,7 @@ class Model(ModelBase):
         return KerasModel(input_, var_x, name="encoder_liae")
 
     def inter_liae(self, side, input_shape):
-        """ DFL SAE LIAE Intermediate Network """
+        """DFL SAE LIAE Intermediate Network"""
         input_ = Input(shape=input_shape)
         lowest_dense_res = self.input_shape[0] // 16
         var_x = input_
@@ -118,7 +143,7 @@ class Model(ModelBase):
         return KerasModel(input_, var_x, name=f"intermediate_{side}")
 
     def decoder(self, side, input_shape):
-        """ DFL SAE Decoder Network"""
+        """DFL SAE Decoder Network"""
         input_ = Input(shape=input_shape)
         outputs = []
 
@@ -156,12 +181,18 @@ class Model(ModelBase):
         return KerasModel(input_, outputs=outputs, name=f"decoder_{side}")
 
     def _legacy_mapping(self):
-        """ The mapping of legacy separate model names to single model names """
-        mappings = dict(df={f"{self.name}_encoder.h5": "encoder_df",
-                            f"{self.name}_decoder_A.h5": "decoder_a",
-                            f"{self.name}_decoder_B.h5": "decoder_b"},
-                        liae={f"{self.name}_encoder.h5": "encoder_liae",
-                              f"{self.name}_intermediate_B.h5": "intermediate_both",
-                              f"{self.name}_intermediate.h5": "intermediate_b",
-                              f"{self.name}_decoder.h5": "decoder_both"})
+        """The mapping of legacy separate model names to single model names"""
+        mappings = dict(
+            df={
+                f"{self.name}_encoder.h5": "encoder_df",
+                f"{self.name}_decoder_A.h5": "decoder_a",
+                f"{self.name}_decoder_B.h5": "decoder_b",
+            },
+            liae={
+                f"{self.name}_encoder.h5": "encoder_liae",
+                f"{self.name}_intermediate_B.h5": "intermediate_both",
+                f"{self.name}_intermediate.h5": "intermediate_b",
+                f"{self.name}_decoder.h5": "decoder_both",
+            },
+        )
         return mappings[self.config["architecture"]]

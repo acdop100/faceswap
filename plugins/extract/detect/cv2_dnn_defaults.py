@@ -41,6 +41,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
@@ -54,7 +55,7 @@ _DEFAULTS = dict(
     confidence=dict(
         default=50,
         info="The confidence level at which the detector has succesfully found a face.\nHigher "
-             "levels will be more discriminating, lower levels will have more false positives.",
+        "levels will be more discriminating, lower levels will have more false positives.",
         datatype=int,
         rounding=5,
         min_max=(25, 100),

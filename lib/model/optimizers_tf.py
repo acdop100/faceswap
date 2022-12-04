@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """ Custom Optimizers for TensorFlow 2.x/tf.keras """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import annotations
 
 import inspect
 import sys
 
 import tensorflow as tf
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Nadam
+from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.utils import (
+    get_custom_objects,
+)  # noqa pylint:disable=no-name-in-module,import-error
 
 # Ignore linting errors from Tensorflow's thoroughly broken import system
-from tensorflow.keras.optimizers import (Adam, Nadam, RMSprop)  # noqa pylint:disable=no-name-in-module,unused-import,import-error
-from tensorflow.keras.utils import get_custom_objects  # noqa pylint:disable=no-name-in-module,import-error
 
 
 class AdaBelief(tf.keras.optimizers.Optimizer):
-    """ Implementation of the AdaBelief Optimizer
+    """Implementation of the AdaBelief Optimizer
 
     Inherits from: tf.keras.optimizers.Optimizer.
 
@@ -128,9 +130,22 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     """
 
-    def __init__(self, learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-14,
-                 weight_decay=0.0, rectify=True, amsgrad=False, sma_threshold=5.0, total_steps=0,
-                 warmup_proportion=0.1, min_lr=0.0, name="AdaBeliefOptimizer", **kwargs):
+    def __init__(
+        self,
+        learning_rate=0.001,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-14,
+        weight_decay=0.0,
+        rectify=True,
+        amsgrad=False,
+        sma_threshold=5.0,
+        total_steps=0,
+        warmup_proportion=0.1,
+        min_lr=0.0,
+        name="AdaBeliefOptimizer",
+        **kwargs,
+    ):
         # pylint:disable=too-many-arguments
         super().__init__(name, **kwargs)
         self._set_hyper("learning_rate", kwargs.get("lr", learning_rate))
@@ -149,7 +164,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         self._initial_total_steps = total_steps
 
     def _create_slots(self, var_list):
-        """ Create slots for the first and second moments
+        """Create slots for the first and second moments
 
         Parameters
         ----------
@@ -163,7 +178,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
                 self.add_slot(var, "vhat")
 
     def set_weights(self, weights):
-        """ Set the weights of the optimizer.
+        """Set the weights of the optimizer.
 
         The weights of an optimizer are its state (IE, variables). This function takes the weight
         values associated with this optimizer as a list of Numpy arrays. The first value is always
@@ -182,7 +197,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         super().set_weights(weights)
 
     def _decayed_wd(self, var_dtype):
-        """ Set the weight decay
+        """Set the weight decay
 
         Parameters
         ----------
@@ -201,7 +216,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
 
     def _resource_apply_dense(self, grad, handle, apply_state=None):
         # pylint:disable=too-many-locals,unused-argument
-        """ Add ops to apply dense gradients to the variable handle.
+        """Add ops to apply dense gradients to the variable handle.
 
         Parameters
         ----------
@@ -234,17 +249,23 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
             min_lr = self._get_hyper("min_lr", var_dtype)
             decay_steps = tf.maximum(total_steps - warmup_steps, 1)
             decay_rate = (min_lr - lr_t) / decay_steps
-            lr_t = tf.where(local_step <= warmup_steps,
-                            lr_t * (local_step / warmup_steps),
-                            lr_t + decay_rate * tf.minimum(local_step - warmup_steps, decay_steps))
+            lr_t = tf.where(
+                local_step <= warmup_steps,
+                lr_t * (local_step / warmup_steps),
+                lr_t + decay_rate * tf.minimum(local_step - warmup_steps, decay_steps),
+            )
 
-        m_t = var_m.assign(beta_1_t * var_m + (1.0 - beta_1_t) * grad,
-                           use_locking=self._use_locking)
+        m_t = var_m.assign(
+            beta_1_t * var_m + (1.0 - beta_1_t) * grad, use_locking=self._use_locking
+        )
         m_corr_t = m_t / (1.0 - beta_1_power)
 
         v_t = var_v.assign(
-            beta_2_t * var_v + (1.0 - beta_2_t) * tf.math.square(grad - m_t) + epsilon_t,
-            use_locking=self._use_locking)
+            beta_2_t * var_v
+            + (1.0 - beta_2_t) * tf.math.square(grad - m_t)
+            + epsilon_t,
+            use_locking=self._use_locking,
+        )
 
         if self.amsgrad:
             vhat = self.get_slot(handle, "vhat")
@@ -257,13 +278,20 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         if self.rectify:
             sma_inf = 2.0 / (1.0 - beta_2_t) - 1.0
             sma_t = sma_inf - 2.0 * local_step * beta_2_power / (1.0 - beta_2_power)
-            r_t = tf.math.sqrt((sma_t - 4.0) / (sma_inf - 4.0) *
-                               (sma_t - 2.0) / (sma_inf - 2.0) *
-                               sma_inf / sma_t)
+            r_t = tf.math.sqrt(
+                (sma_t - 4.0)
+                / (sma_inf - 4.0)
+                * (sma_t - 2.0)
+                / (sma_inf - 2.0)
+                * sma_inf
+                / sma_t
+            )
             sma_threshold = self._get_hyper("sma_threshold", var_dtype)
-            var_t = tf.where(sma_t >= sma_threshold,
-                             r_t * m_corr_t / (v_corr_t + epsilon_t),
-                             m_corr_t)
+            var_t = tf.where(
+                sma_t >= sma_threshold,
+                r_t * m_corr_t / (v_corr_t + epsilon_t),
+                m_corr_t,
+            )
         else:
             var_t = m_corr_t / (v_corr_t + epsilon_t)
 
@@ -279,7 +307,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
 
     def _resource_apply_sparse(self, grad, handle, indices, apply_state=None):
         # pylint:disable=too-many-locals, unused-argument
-        """ Add ops to apply sparse gradients to the variable handle.
+        """Add ops to apply sparse gradients to the variable handle.
 
         Similar to _apply_sparse, the indices argument to this method has been de-duplicated.
         Optimizers which deal correctly with non-unique indices may instead override
@@ -317,9 +345,11 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
             min_lr = self._get_hyper("min_lr", var_dtype)
             decay_steps = tf.maximum(total_steps - warmup_steps, 1)
             decay_rate = (min_lr - lr_t) / decay_steps
-            lr_t = tf.where(local_step <= warmup_steps,
-                            lr_t * (local_step / warmup_steps),
-                            lr_t + decay_rate * tf.minimum(local_step - warmup_steps, decay_steps))
+            lr_t = tf.where(
+                local_step <= warmup_steps,
+                lr_t * (local_step / warmup_steps),
+                lr_t + decay_rate * tf.minimum(local_step - warmup_steps, decay_steps),
+            )
 
         var_m = self.get_slot(handle, "m")
         m_scaled_g_values = grad * (1 - beta_1_t)
@@ -344,24 +374,33 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         if self.rectify:
             sma_inf = 2.0 / (1.0 - beta_2_t) - 1.0
             sma_t = sma_inf - 2.0 * local_step * beta_2_power / (1.0 - beta_2_power)
-            r_t = tf.math.sqrt((sma_t - 4.0) / (sma_inf - 4.0) *
-                               (sma_t - 2.0) / (sma_inf - 2.0) *
-                               sma_inf / sma_t)
+            r_t = tf.math.sqrt(
+                (sma_t - 4.0)
+                / (sma_inf - 4.0)
+                * (sma_t - 2.0)
+                / (sma_inf - 2.0)
+                * sma_inf
+                / sma_t
+            )
             sma_threshold = self._get_hyper("sma_threshold", var_dtype)
-            var_t = tf.where(sma_t >= sma_threshold,
-                             r_t * m_corr_t / (v_corr_t + epsilon_t),
-                             m_corr_t)
+            var_t = tf.where(
+                sma_t >= sma_threshold,
+                r_t * m_corr_t / (v_corr_t + epsilon_t),
+                m_corr_t,
+            )
         else:
             var_t = m_corr_t / (v_corr_t + epsilon_t)
 
         if self._has_weight_decay:
             var_t += wd_t * handle
 
-        var_update = self._resource_scatter_add(handle,
-                                                indices,
-                                                tf.gather(  # pylint:disable=no-value-for-parameter
-                                                    tf.math.negative(lr_t) * var_t,
-                                                    indices))
+        var_update = self._resource_scatter_add(
+            handle,
+            indices,
+            tf.gather(  # pylint:disable=no-value-for-parameter
+                tf.math.negative(lr_t) * var_t, indices
+            ),
+        )
 
         updates = [var_update, m_t, v_t]
         if self.amsgrad:
@@ -369,7 +408,7 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
         return tf.group(*updates)
 
     def get_config(self):
-        """ Returns the config of the optimizer.
+        """Returns the config of the optimizer.
 
         An optimizer config is a Python dictionary (serializable) containing the configuration of
         an optimizer. The same optimizer can be re-instantiated later (without any saved state)
@@ -381,18 +420,22 @@ class AdaBelief(tf.keras.optimizers.Optimizer):
             The optimizer configuration.
         """
         config = super().get_config()
-        config.update(dict(learning_rate=self._serialize_hyperparameter("learning_rate"),
-                           beta_1=self._serialize_hyperparameter("beta_1"),
-                           beta_2=self._serialize_hyperparameter("beta_2"),
-                           decay=self._serialize_hyperparameter("decay"),
-                           weight_decay=self._serialize_hyperparameter("weight_decay"),
-                           sma_threshold=self._serialize_hyperparameter("sma_threshold"),
-                           epsilon=self.epsilon,
-                           amsgrad=self.amsgrad,
-                           rectify=self.rectify,
-                           total_steps=self._serialize_hyperparameter("total_steps"),
-                           warmup_proportion=self._serialize_hyperparameter("warmup_proportion"),
-                           min_lr=self._serialize_hyperparameter("min_lr")))
+        config.update(
+            dict(
+                learning_rate=self._serialize_hyperparameter("learning_rate"),
+                beta_1=self._serialize_hyperparameter("beta_1"),
+                beta_2=self._serialize_hyperparameter("beta_2"),
+                decay=self._serialize_hyperparameter("decay"),
+                weight_decay=self._serialize_hyperparameter("weight_decay"),
+                sma_threshold=self._serialize_hyperparameter("sma_threshold"),
+                epsilon=self.epsilon,
+                amsgrad=self.amsgrad,
+                rectify=self.rectify,
+                total_steps=self._serialize_hyperparameter("total_steps"),
+                warmup_proportion=self._serialize_hyperparameter("warmup_proportion"),
+                min_lr=self._serialize_hyperparameter("min_lr"),
+            )
+        )
         return config
 
 

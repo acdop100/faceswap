@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
 """ Launches the correct script with the given Command Line Arguments """
+from __future__ import annotations
+
 import logging
 import os
 import platform
 import sys
-
 from importlib import import_module
-from typing import Callable, TYPE_CHECKING
+from typing import Callable
+from typing import TYPE_CHECKING
 
-from lib.gpu_stats import set_exclude_devices, GPUStats
-from lib.logger import crash_log, log_setup
-from lib.utils import (FaceswapError, get_backend, get_tf_version, safe_shutdown,
-                       set_backend, set_system_verbosity)
+from lib.gpu_stats import GPUStats
+from lib.gpu_stats import set_exclude_devices
+from lib.logger import crash_log
+from lib.logger import log_setup
+from lib.utils import FaceswapError
+from lib.utils import get_backend
+from lib.utils import get_tf_version
+from lib.utils import safe_shutdown
+from lib.utils import set_backend
+from lib.utils import set_system_verbosity
 
 if TYPE_CHECKING:
     import argparse
@@ -19,23 +27,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class ScriptExecutor():  # pylint:disable=too-few-public-methods
-    """ Loads the relevant script modules and executes the script.
+class ScriptExecutor:  # pylint:disable=too-few-public-methods
+    """Loads the relevant script modules and executes the script.
 
-        This class is initialized in each of the argparsers for the relevant
-        command, then execute script is called within their set_default
-        function.
+    This class is initialized in each of the argparsers for the relevant
+    command, then execute script is called within their set_default
+    function.
 
-        Parameters
-        ----------
-        command: str
-            The faceswap command that is being executed
-        """
+    Parameters
+    ----------
+    command: str
+        The faceswap command that is being executed
+    """
+
     def __init__(self, command: str) -> None:
         self._command = command.lower()
 
     def _import_script(self) -> Callable:
-        """ Imports the relevant script as indicated by :attr:`_command` from the scripts folder.
+        """Imports the relevant script as indicated by :attr:`_command` from the scripts folder.
 
         Returns
         -------
@@ -53,7 +62,7 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         return script
 
     def _set_environment_variables(self) -> None:
-        """ Set the number of threads that numexpr can use and TF environment variables. """
+        """Set the number of threads that numexpr can use and TF environment variables."""
         # Allocate a decent number of threads to numexpr to suppress warnings
         cpu_count = os.cpu_count()
         allocate = cpu_count - cpu_count // 3 if cpu_count is not None else 1
@@ -76,11 +85,13 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         #
         # TODO find a better way than just allowing multiple libs
         if get_backend() == "cpu" and platform.system() == "Windows":
-            logger.debug("Setting `KMP_DUPLICATE_LIB_OK` environment variable to `TRUE`")
+            logger.debug(
+                "Setting `KMP_DUPLICATE_LIB_OK` environment variable to `TRUE`"
+            )
             os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
     def _test_for_tf_version(self) -> None:
-        """ Check that the required Tensorflow version is installed.
+        """Check that the required Tensorflow version is installed.
 
         Raises
         ------
@@ -98,34 +109,42 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
                     f"A DLL library file failed to load. Make sure that you have Microsoft Visual "
                     "C++ Redistributable (2015, 2017, 2019) installed for your machine from: "
                     "https://support.microsoft.com/en-gb/help/2977003. Original error: "
-                    f"{str(err)}")
+                    f"{str(err)}"
+                )
             else:
                 msg = (
                     f"There was an error importing Tensorflow. This is most likely because you do "
                     "not have TensorFlow installed, or you are trying to run tensorflow-gpu on a "
                     "system without an Nvidia graphics card. Original import "
-                    f"error: {str(err)}")
+                    f"error: {str(err)}"
+                )
             self._handle_import_error(msg)
 
         tf_ver = get_tf_version()
         backend = get_backend()
         if backend != "amd" and tf_ver < min_ver:
-            msg = (f"The minimum supported Tensorflow is version {min_ver} but you have version "
-                   f"{tf_ver} installed. Please upgrade Tensorflow.")
+            msg = (
+                f"The minimum supported Tensorflow is version {min_ver} but you have version "
+                f"{tf_ver} installed. Please upgrade Tensorflow."
+            )
             self._handle_import_error(msg)
         if backend != "amd" and tf_ver > max_ver:
-            msg = (f"The maximum supported Tensorflow is version {max_ver} but you have version "
-                   f"{tf_ver} installed. Please downgrade Tensorflow.")
+            msg = (
+                f"The maximum supported Tensorflow is version {max_ver} but you have version "
+                f"{tf_ver} installed. Please downgrade Tensorflow."
+            )
             self._handle_import_error(msg)
         if backend == "amd" and tf_ver != amd_ver:
-            msg = (f"The supported Tensorflow version for AMD cards is {amd_ver} but you have "
-                   f"version {tf_ver} installed. Please install the correct version.")
+            msg = (
+                f"The supported Tensorflow version for AMD cards is {amd_ver} but you have "
+                f"version {tf_ver} installed. Please install the correct version."
+            )
             self._handle_import_error(msg)
         logger.debug("Installed Tensorflow Version: %s", tf_ver)
 
     @classmethod
     def _handle_import_error(cls, message: str) -> None:
-        """ Display the error message to the console and wait for user input to dismiss it, if
+        """Display the error message to the console and wait for user input to dismiss it, if
         running GUI under Windows, otherwise use standard error handling.
 
         Parameters
@@ -135,14 +154,14 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         """
         if "gui" in sys.argv and platform.system() == "Windows":
             logger.error(message)
-            logger.info("Press \"ENTER\" to dismiss the message and close FaceSwap")
+            logger.info('Press "ENTER" to dismiss the message and close FaceSwap')
             input()
             sys.exit(1)
         else:
             raise FaceswapError(message)
 
     def _test_for_gui(self) -> None:
-        """ If running the gui, performs check to ensure necessary prerequisites are present. """
+        """If running the gui, performs check to ensure necessary prerequisites are present."""
         if self._command != "gui":
             return
         self._test_tkinter()
@@ -150,7 +169,7 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
 
     @classmethod
     def _test_tkinter(cls) -> None:
-        """ If the user is running the GUI, test whether the tkinter app is available on their
+        """If the user is running the GUI, test whether the tkinter app is available on their
         machine. If not exit gracefully.
 
         This avoids having to import every tkinter function within the GUI in a wrapper and
@@ -164,12 +183,16 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         try:
             import tkinter  # noqa pylint: disable=unused-import,import-outside-toplevel
         except ImportError as err:
-            logger.error("It looks like TkInter isn't installed for your OS, so the GUI has been "
-                         "disabled. To enable the GUI please install the TkInter application. You "
-                         "can try:")
+            logger.error(
+                "It looks like TkInter isn't installed for your OS, so the GUI has been "
+                "disabled. To enable the GUI please install the TkInter application. You "
+                "can try:"
+            )
             logger.info("Anaconda: conda install tk")
-            logger.info("Windows/macOS: Install ActiveTcl Community Edition from "
-                        "http://www.activestate.com")
+            logger.info(
+                "Windows/macOS: Install ActiveTcl Community Edition from "
+                "http://www.activestate.com"
+            )
             logger.info("Ubuntu/Mint/Debian: sudo apt install python3-tk")
             logger.info("Arch: sudo pacman -S tk")
             logger.info("CentOS/Redhat: sudo yum install tkinter")
@@ -178,7 +201,7 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
 
     @classmethod
     def _check_display(cls) -> None:
-        """ Check whether there is a display to output the GUI to.
+        """Check whether there is a display to output the GUI to.
 
         If running on Windows then it is assumed that we are not running in headless mode
 
@@ -189,12 +212,14 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         """
         if not os.environ.get("DISPLAY", None) and os.name != "nt":
             if platform.system() == "Darwin":
-                logger.info("macOS users need to install XQuartz. "
-                            "See https://support.apple.com/en-gb/HT201341")
+                logger.info(
+                    "macOS users need to install XQuartz. "
+                    "See https://support.apple.com/en-gb/HT201341"
+                )
             raise FaceswapError("No display detected. GUI mode has been disabled.")
 
-    def execute_script(self, arguments: "argparse.Namespace") -> None:
-        """ Performs final set up and launches the requested :attr:`_command` with the given
+    def execute_script(self, arguments: argparse.Namespace) -> None:
+        """Performs final set up and launches the requested :attr:`_command` with the given
         command line arguments.
 
         Monitors for errors and attempts to shut down the process cleanly on exit.
@@ -226,16 +251,18 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         except Exception:  # pylint: disable=broad-except
             crash_file = crash_log()
             logger.exception("Got Exception on main handler:")
-            logger.critical("An unexpected crash has occurred. Crash report written to '%s'. "
-                            "You MUST provide this file if seeking assistance. Please verify you "
-                            "are running the latest version of faceswap before reporting",
-                            crash_file)
+            logger.critical(
+                "An unexpected crash has occurred. Crash report written to '%s'. "
+                "You MUST provide this file if seeking assistance. Please verify you "
+                "are running the latest version of faceswap before reporting",
+                crash_file,
+            )
 
         finally:
             safe_shutdown(got_error=not success)
 
-    def _configure_backend(self, arguments: "argparse.Namespace") -> None:
-        """ Configure the backend.
+    def _configure_backend(self, arguments: argparse.Namespace) -> None:
+        """Configure the backend.
 
         Exclude any GPUs for use by Faceswap when requested.
 
@@ -254,8 +281,10 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
 
         if arguments.exclude_gpus:
             if not all(idx.isdigit() for idx in arguments.exclude_gpus):
-                logger.error("GPUs passed to the ['-X', '--exclude-gpus'] argument must all be "
-                             "integers.")
+                logger.error(
+                    "GPUs passed to the ['-X', '--exclude-gpus'] argument must all be "
+                    "integers."
+                )
                 sys.exit(1)
             arguments.exclude_gpus = [int(idx) for idx in arguments.exclude_gpus]
             set_exclude_devices(arguments.exclude_gpus)
@@ -263,7 +292,7 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         if GPUStats().exclude_all_devices:
             msg = "Switching backend to CPU"
             if get_backend() == "amd":
-                msg += (". Using Tensorflow for CPU operations.")
+                msg += ". Using Tensorflow for CPU operations."
                 os.environ["KERAS_BACKEND"] = "tensorflow"
             set_backend("cpu")
             logger.info(msg)
@@ -274,8 +303,8 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
             safe_shutdown(got_error=True)
 
     @classmethod
-    def _setup_amd(cls, arguments: "argparse.Namespace") -> bool:
-        """ Test for plaidml and perform setup for AMD.
+    def _setup_amd(cls, arguments: argparse.Namespace) -> bool:
+        """Test for plaidml and perform setup for AMD.
 
         Parameters
         ----------
@@ -291,9 +320,14 @@ class ScriptExecutor():  # pylint:disable=too-few-public-methods
         try:
             import plaidml  # noqa pylint:disable=unused-import,import-outside-toplevel
         except ImportError:
-            logger.error("PlaidML not found. Run `pip install plaidml-keras` for AMD support")
+            logger.error(
+                "PlaidML not found. Run `pip install plaidml-keras` for AMD support"
+            )
             return False
-        from lib.gpu_stats import setup_plaidml  # pylint:disable=import-outside-toplevel
+        from lib.gpu_stats import (
+            setup_plaidml,
+        )  # pylint:disable=import-outside-toplevel
+
         setup_plaidml(arguments.loglevel, arguments.exclude_gpus)
         logger.debug("setup up for PlaidML")
         return True

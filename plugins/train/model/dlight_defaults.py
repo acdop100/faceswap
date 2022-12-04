@@ -39,17 +39,20 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
-_HELPTEXT = ("A lightweight, high resolution Dfaker variant "
-             "(Adapted from https://github.com/dfaker/df)")
+_HELPTEXT = (
+    "A lightweight, high resolution Dfaker variant "
+    "(Adapted from https://github.com/dfaker/df)"
+)
 
 
 _DEFAULTS = dict(
     features=dict(
         default="best",
         info="Higher settings will allow learning more features such as tatoos, piercing and "
-             "wrinkles.\nStrongly affects VRAM usage.",
+        "wrinkles.\nStrongly affects VRAM usage.",
         datatype=str,
         choices=["lowmem", "fair", "best"],
         group="settings",
@@ -59,7 +62,7 @@ _DEFAULTS = dict(
     details=dict(
         default="good",
         info="Defines detail fidelity. Lower setting can appear 'rugged' while 'good' might take "
-             "a longer time to train.\nAffects VRAM usage.",
+        "a longer time to train.\nAffects VRAM usage.",
         datatype=str,
         choices=["fast", "good"],
         group="settings",
@@ -69,7 +72,7 @@ _DEFAULTS = dict(
     output_size=dict(
         default=256,
         info="Output image resolution (in pixels).\nBe aware that larger resolution will increase "
-             "VRAM requirements.\nNB: Must be either 128, 256, or 384.",
+        "VRAM requirements.\nNB: Must be either 128, 256, or 384.",
         datatype=int,
         rounding=128,
         min_max=(128, 384),

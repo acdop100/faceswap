@@ -1,13 +1,19 @@
 #!/usr/bin python3
 """ Main entry point to the training process of FaceSwap """
+from __future__ import annotations
 
 import logging
 import os
 import sys
-
-from time import sleep
 from threading import Event
-from typing import cast, Callable, Dict, List, Optional, TYPE_CHECKING
+from time import sleep
+from typing import Callable
+from typing import cast
+from typing import Dict
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -15,16 +21,17 @@ import numpy as np
 from lib.gui.utils.image import TRAININGPREVIEW
 from lib.image import read_image_meta
 from lib.keypress import KBHit
-from lib.multithreading import MultiThread, FSThread
-from lib.training import Preview, PreviewBuffer, TriggerType
-from lib.utils import (deprecation_warning, get_folder, get_image_paths,
-                       FaceswapError, _image_extensions)
+from lib.multithreading import FSThread
+from lib.multithreading import MultiThread
+from lib.training import Preview
+from lib.training import PreviewBuffer
+from lib.training import TriggerType
+from lib.utils import _image_extensions
+from lib.utils import deprecation_warning
+from lib.utils import FaceswapError
+from lib.utils import get_folder
+from lib.utils import get_image_paths
 from plugins.plugin_loader import PluginLoader
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
 
 if TYPE_CHECKING:
     import argparse
@@ -35,8 +42,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class Train():  # pylint:disable=too-few-public-methods
-    """ The Faceswap Training Process.
+class Train:  # pylint:disable=too-few-public-methods
+    """The Faceswap Training Process.
 
     The training process is responsible for training a model on a set of source faces and a set of
     destination faces.
@@ -50,7 +57,8 @@ class Train():  # pylint:disable=too-few-public-methods
         The arguments to be passed to the training process as generated from Faceswap's command
         line arguments
     """
-    def __init__(self, arguments: "argparse.Namespace") -> None:
+
+    def __init__(self, arguments: argparse.Namespace) -> None:
         logger.debug("Initializing %s: (args: %s", self.__class__.__name__, arguments)
         self._args = arguments
         self._handle_deprecations()
@@ -62,10 +70,12 @@ class Train():  # pylint:disable=too-few-public-methods
         self._images = self._get_images()
         self._timelapse = self._set_timelapse()
         gui_cache = os.path.join(
-            os.path.realpath(os.path.dirname(sys.argv[0])), "lib", "gui", ".cache")
-        self._gui_triggers: Dict[Literal["mask", "refresh"], str] = dict(
+            os.path.realpath(os.path.dirname(sys.argv[0])), "lib", "gui", ".cache"
+        )
+        self._gui_triggers: dict[Literal["mask", "refresh"], str] = dict(
             mask=os.path.join(gui_cache, ".preview_mask_toggle"),
-            refresh=os.path.join(gui_cache, ".preview_trigger"))
+            refresh=os.path.join(gui_cache, ".preview_trigger"),
+        )
         self._stop: bool = False
         self._save_now: bool = False
         self._preview = PreviewInterface(self._args.preview)
@@ -73,16 +83,17 @@ class Train():  # pylint:disable=too-few-public-methods
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def _handle_deprecations(self) -> None:
-        """ Handle the update of deprecated arguments and output warnings. """
+        """Handle the update of deprecated arguments and output warnings."""
         if self._args.distributed:
-            deprecation_warning("`-d`, `--distributed`",
-                                "Please use `-D`, `--distribution-strategy`")
+            deprecation_warning(
+                "`-d`, `--distributed`", "Please use `-D`, `--distribution-strategy`"
+            )
             logger.warning("Setting 'distribution-strategy' to 'mirrored'")
             setattr(self._args, "distribution_strategy", "mirrored")
             del self._args.distributed
 
-    def _get_images(self) -> Dict[Literal["a", "b"], List[str]]:
-        """ Check the image folders exist and contains valid extracted faces. Obtain image paths.
+    def _get_images(self) -> dict[Literal["a", "b"], list[str]]:
+        """Check the image folders exist and contains valid extracted faces. Obtain image paths.
 
         Returns
         -------
@@ -108,22 +119,32 @@ class Train():  # pylint:disable=too-few-public-methods
             meta = read_image_meta(test_image)
             logger.debug("Test file: (filename: %s, metadata: %s)", test_image, meta)
             if "itxt" not in meta or "alignments" not in meta["itxt"]:
-                logger.error("The input folder '%s' contains images that are not extracted faces.",
-                             image_dir)
-                logger.error("You can only train a model on faces generated from Faceswap's "
-                             "extract process. Please check your sources and try again.")
+                logger.error(
+                    "The input folder '%s' contains images that are not extracted faces.",
+                    image_dir,
+                )
+                logger.error(
+                    "You can only train a model on faces generated from Faceswap's "
+                    "extract process. Please check your sources and try again."
+                )
                 sys.exit(1)
 
-            logger.info("Model %s Directory: '%s' (%s images)",
-                        side.upper(), image_dir, len(images[side]))
-        logger.debug("Got image paths: %s", [(key, str(len(val)) + " images")
-                                             for key, val in images.items()])
+            logger.info(
+                "Model %s Directory: '%s' (%s images)",
+                side.upper(),
+                image_dir,
+                len(images[side]),
+            )
+        logger.debug(
+            "Got image paths: %s",
+            [(key, str(len(val)) + " images") for key, val in images.items()],
+        )
         self._validate_image_counts(images)
         return images
 
     @classmethod
-    def _validate_image_counts(cls, images: Dict[Literal["a", "b"], List[str]]) -> None:
-        """ Validate that there are sufficient images to commence training without raising an
+    def _validate_image_counts(cls, images: dict[Literal["a", "b"], list[str]]) -> None:
+        """Validate that there are sufficient images to commence training without raising an
         error.
 
         Confirms that there are at least 24 images in each folder. Whilst this is not enough images
@@ -139,19 +160,25 @@ class Train():  # pylint:disable=too-few-public-methods
             for that side.
         """
         counts = {side: len(paths) for side, paths in images.items()}
-        msg = ("You need to provide a significant number of images to successfully train a Neural "
-               "Network. Aim for between 500 - 5000 images per side.")
+        msg = (
+            "You need to provide a significant number of images to successfully train a Neural "
+            "Network. Aim for between 500 - 5000 images per side."
+        )
         if any(count < 25 for count in counts.values()):
-            logger.error("At least one of your input folders contains fewer than 25 images.")
+            logger.error(
+                "At least one of your input folders contains fewer than 25 images."
+            )
             logger.error(msg)
             sys.exit(1)
         if any(count < 250 for count in counts.values()):
-            logger.warning("At least one of your input folders contains fewer than 250 images. "
-                           "Results are likely to be poor.")
+            logger.warning(
+                "At least one of your input folders contains fewer than 250 images. "
+                "Results are likely to be poor."
+            )
             logger.warning(msg)
 
-    def _set_timelapse(self) -> Dict[Literal["input_a", "input_b", "output"], str]:
-        """ Set time-lapse paths if requested.
+    def _set_timelapse(self) -> dict[Literal["input_a", "input_b", "output"], str]:
+        """Set time-lapse paths if requested.
 
         Returns
         -------
@@ -159,16 +186,22 @@ class Train():  # pylint:disable=too-few-public-methods
             The time-lapse keyword arguments for passing to the trainer
 
         """
-        if (not self._args.timelapse_input_a and
-                not self._args.timelapse_input_b and
-                not self._args.timelapse_output):
+        if (
+            not self._args.timelapse_input_a
+            and not self._args.timelapse_input_b
+            and not self._args.timelapse_output
+        ):
             return {}
-        if (not self._args.timelapse_input_a or
-                not self._args.timelapse_input_b or
-                not self._args.timelapse_output):
-            raise FaceswapError("To enable the timelapse, you have to supply all the parameters "
-                                "(--timelapse-input-A, --timelapse-input-B and "
-                                "--timelapse-output).")
+        if (
+            not self._args.timelapse_input_a
+            or not self._args.timelapse_input_b
+            or not self._args.timelapse_output
+        ):
+            raise FaceswapError(
+                "To enable the timelapse, you have to supply all the parameters "
+                "(--timelapse-input-A, --timelapse-input-B and "
+                "--timelapse-output)."
+            )
 
         timelapse_output = get_folder(self._args.timelapse_output)
 
@@ -182,28 +215,37 @@ class Train():  # pylint:disable=too-few-public-methods
             if folder == training_folder:
                 continue  # Time-lapse folder is training folder
 
-            filenames = [fname for fname in os.listdir(folder)
-                         if os.path.splitext(fname)[-1].lower() in _image_extensions]
+            filenames = [
+                fname
+                for fname in os.listdir(folder)
+                if os.path.splitext(fname)[-1].lower() in _image_extensions
+            ]
             if not filenames:
-                raise FaceswapError(f"The Timelapse path '{folder}' does not contain any valid "
-                                    "images")
+                raise FaceswapError(
+                    f"The Timelapse path '{folder}' does not contain any valid "
+                    "images"
+                )
 
             # Time-lapse images must appear in the training set, as we need access to alignment and
             # mask info. Check filenames are there to save failing much later in the process.
             training_images = [os.path.basename(img) for img in self._images[side]]
             if not all(img in training_images for img in filenames):
-                raise FaceswapError(f"All images in the Timelapse folder '{folder}' must exist in "
-                                    f"the training folder '{training_folder}'")
+                raise FaceswapError(
+                    f"All images in the Timelapse folder '{folder}' must exist in "
+                    f"the training folder '{training_folder}'"
+                )
 
         TKey = Literal["input_a", "input_b", "output"]
-        kwargs = {cast(TKey, "input_a"): self._args.timelapse_input_a,
-                  cast(TKey, "input_b"): self._args.timelapse_input_b,
-                  cast(TKey, "output"): timelapse_output}
+        kwargs = {
+            cast(TKey, "input_a"): self._args.timelapse_input_a,
+            cast(TKey, "input_b"): self._args.timelapse_input_b,
+            cast(TKey, "output"): timelapse_output,
+        }
         logger.debug("Timelapse enabled: %s", kwargs)
         return kwargs
 
     def process(self) -> None:
-        """ The entry point for triggering the Training Process.
+        """The entry point for triggering the Training Process.
 
         Should only be called from  :class:`lib.cli.launcher.ScriptExecutor`
         """
@@ -219,7 +261,7 @@ class Train():  # pylint:disable=too-few-public-methods
         logger.debug("Completed Training Process")
 
     def _start_thread(self) -> MultiThread:
-        """ Put the :func:`_training` into a background thread so we can keep control.
+        """Put the :func:`_training` into a background thread so we can keep control.
 
         Returns
         -------
@@ -233,7 +275,7 @@ class Train():  # pylint:disable=too-few-public-methods
         return thread
 
     def _end_thread(self, thread: MultiThread, err: bool) -> None:
-        """ Output message and join thread back to main on termination.
+        """Output message and join thread back to main on termination.
 
         Parameters
         ----------
@@ -247,9 +289,11 @@ class Train():  # pylint:disable=too-few-public-methods
             msg = "Error caught! Exiting..."
             log = logger.critical
         else:
-            msg = ("Exit requested! The trainer will complete its current cycle, "
-                   "save the models and quit (This can take a couple of minutes "
-                   "depending on your training speed).")
+            msg = (
+                "Exit requested! The trainer will complete its current cycle, "
+                "save the models and quit (This can take a couple of minutes "
+                "depending on your training speed)."
+            )
             if not self._args.redirect_gui:
                 msg += " If you want to kill it now, press Ctrl + c"
             log = logger.info
@@ -260,7 +304,7 @@ class Train():  # pylint:disable=too-few-public-methods
         logger.debug("Ended training thread")
 
     def _training(self) -> None:
-        """ The training process to be run inside a thread. """
+        """The training process to be run inside a thread."""
         try:
             sleep(0.5)  # Let preview instructions flush out to logger
             logger.debug("Commencing Training")
@@ -279,8 +323,8 @@ class Train():  # pylint:disable=too-few-public-methods
         except Exception as err:
             raise err
 
-    def _load_model(self) -> "ModelBase":
-        """ Load the model requested for training.
+    def _load_model(self) -> ModelBase:
+        """Load the model requested for training.
 
         Returns
         -------
@@ -289,16 +333,15 @@ class Train():  # pylint:disable=too-few-public-methods
         """
         logger.debug("Loading Model")
         model_dir = get_folder(self._args.model_dir)
-        model: "ModelBase" = PluginLoader.get_model(self._args.trainer)(
-            model_dir,
-            self._args,
-            predict=False)
+        model: ModelBase = PluginLoader.get_model(self._args.trainer)(
+            model_dir, self._args, predict=False
+        )
         model.build()
         logger.debug("Loaded Model")
         return model
 
-    def _load_trainer(self, model: "ModelBase") -> "TrainerBase":
-        """ Load the trainer requested for training.
+    def _load_trainer(self, model: ModelBase) -> TrainerBase:
+        """Load the trainer requested for training.
 
         Parameters
         ----------
@@ -312,15 +355,14 @@ class Train():  # pylint:disable=too-few-public-methods
         """
         logger.debug("Loading Trainer")
         base = PluginLoader.get_trainer(model.trainer)
-        trainer: "TrainerBase" = base(model,
-                                      self._images,
-                                      self._args.batch_size,
-                                      self._args.configfile)
+        trainer: TrainerBase = base(
+            model, self._images, self._args.batch_size, self._args.configfile
+        )
         logger.debug("Loaded Trainer")
         return trainer
 
-    def _run_training_cycle(self, model: "ModelBase", trainer: "TrainerBase") -> None:
-        """ Perform the training cycle.
+    def _run_training_cycle(self, model: ModelBase, trainer: TrainerBase) -> None:
+        """Perform the training cycle.
 
         Handles the background training, updating previews/time-lapse on each save interval,
         and saving the model.
@@ -335,7 +377,7 @@ class Train():  # pylint:disable=too-few-public-methods
         logger.debug("Running Training Cycle")
         update_preview_images = False
         if self._args.write_image or self._args.redirect_gui or self._args.preview:
-            display_func: Optional[Callable] = self._show
+            display_func: Callable | None = self._show
         else:
             display_func = None
 
@@ -348,7 +390,11 @@ class Train():  # pylint:disable=too-few-public-methods
                 trainer.toggle_mask()
                 update_preview_images = True
 
-            if self._preview.should_refresh or gui_triggers["refresh"] or update_preview_images:
+            if (
+                self._preview.should_refresh
+                or gui_triggers["refresh"]
+                or update_preview_images
+            ):
                 viewer = display_func
                 update_preview_images = False
             else:
@@ -367,8 +413,13 @@ class Train():  # pylint:disable=too-few-public-methods
                 break
 
             if save_iteration or self._save_now:
-                logger.debug("Saving (save_iterations: %s, save_now: %s) Iteration: "
-                             "(iteration: %s)", save_iteration, self._save_now, iteration)
+                logger.debug(
+                    "Saving (save_iterations: %s, save_now: %s) Iteration: "
+                    "(iteration: %s)",
+                    save_iteration,
+                    self._save_now,
+                    iteration,
+                )
                 model.save(is_exit=False)
                 self._save_now = False
                 update_preview_images = True
@@ -379,21 +430,23 @@ class Train():  # pylint:disable=too-few-public-methods
         self._stop = True
 
     def _output_startup_info(self) -> None:
-        """ Print the startup information to the console. """
+        """Print the startup information to the console."""
         logger.debug("Launching Monitor")
         logger.info("===================================================")
         logger.info("  Starting")
         if self._args.preview:
             logger.info("  Using live preview")
         if sys.stdout.isatty():
-            logger.info("  Press '%s' to save and quit",
-                        "Stop" if self._args.redirect_gui or self._args.colab else "ENTER")
+            logger.info(
+                "  Press '%s' to save and quit",
+                "Stop" if self._args.redirect_gui or self._args.colab else "ENTER",
+            )
         if not self._args.redirect_gui and not self._args.colab and sys.stdout.isatty():
             logger.info("  Press 'S' to save model weights immediately")
         logger.info("===================================================")
 
     def _check_keypress(self, keypress: KBHit) -> bool:
-        """ Check if a keypress has been detected.
+        """Check if a keypress has been detected.
 
         Parameters
         ----------
@@ -416,15 +469,17 @@ class Train():  # pylint:disable=too-few-public-methods
                 self._save_now = True
         return retval
 
-    def _process_gui_triggers(self) -> Dict[Literal["mask", "refresh"], bool]:
-        """ Check whether a file drop has occurred from the GUI to manually update the preview.
+    def _process_gui_triggers(self) -> dict[Literal["mask", "refresh"], bool]:
+        """Check whether a file drop has occurred from the GUI to manually update the preview.
 
         Returns
         -------
         dict
             The trigger name as key and boolean as value
         """
-        retval: Dict[Literal["mask", "refresh"], bool] = {key: False for key in self._gui_triggers}
+        retval: dict[Literal["mask", "refresh"], bool] = {
+            key: False for key in self._gui_triggers
+        }
         if not self._args.redirect_gui:
             return retval
 
@@ -440,7 +495,7 @@ class Train():  # pylint:disable=too-few-public-methods
         return retval
 
     def _monitor(self, thread: MultiThread) -> bool:
-        """ Monitor the background :func:`_training` thread for key presses and errors.
+        """Monitor the background :func:`_training` thread for key presses and errors.
 
         Parameters
         ----------
@@ -485,7 +540,7 @@ class Train():  # pylint:disable=too-few-public-methods
         return err
 
     def _show(self, image: np.ndarray, name: str = "") -> None:
-        """ Generate the preview and write preview file output.
+        """Generate the preview and write preview file output.
 
         Handles the output and display of preview images.
 
@@ -509,7 +564,9 @@ class Train():  # pylint:disable=too-few-public-methods
             if self._args.redirect_gui:
                 logger.debug("Generating preview for GUI")
                 img = TRAININGPREVIEW
-                imgfile = os.path.join(scriptpath, "lib", "gui", ".cache", "preview", img)
+                imgfile = os.path.join(
+                    scriptpath, "lib", "gui", ".cache", "preview", img
+                )
                 cv2.imwrite(imgfile, image)  # pylint: disable=no-member
                 logger.debug("Generated preview for GUI: '%s'", imgfile)
             if self._args.preview:
@@ -522,33 +579,36 @@ class Train():  # pylint:disable=too-few-public-methods
         logger.debug("Updated preview: (name: %s)", name)
 
 
-class PreviewInterface():
-    """ Run the preview window in a thread and interface with it
+class PreviewInterface:
+    """Run the preview window in a thread and interface with it
 
     Parameters
     ----------
     use_preview: bool
         ``True`` if pop-up preview window has been requested otherwise ``False``
     """
+
     def __init__(self, use_preview: bool) -> None:
         self._active = use_preview
-        self._triggers: TriggerType = dict(toggle_mask=Event(),
-                                           refresh=Event(),
-                                           save=Event(),
-                                           quit=Event(),
-                                           shutdown=Event())
+        self._triggers: TriggerType = dict(
+            toggle_mask=Event(),
+            refresh=Event(),
+            save=Event(),
+            quit=Event(),
+            shutdown=Event(),
+        )
         self._buffer = PreviewBuffer()
         self._thread = self._launch_thread()
 
     @property
     def buffer(self) -> PreviewBuffer:
-        """ :class:`PreviewBuffer`: The thread save preview image object """
+        """:class:`PreviewBuffer`: The thread save preview image object"""
         return self._buffer
 
     @property
     def should_toggle_mask(self) -> bool:
-        """ bool: Check whether the mask should be toggled and return the value. If ``True`` is
-        returned then resets mask toggle back to ``False`` """
+        """bool: Check whether the mask should be toggled and return the value. If ``True`` is
+        returned then resets mask toggle back to ``False``"""
         if not self._active:
             return False
         retval = self._triggers["toggle_mask"].is_set()
@@ -559,8 +619,8 @@ class PreviewInterface():
 
     @property
     def should_refresh(self) -> bool:
-        """ bool: Check whether the preview should be updated and return the value. If ``True`` is
-        returned then resets the refresh trigger back to ``False`` """
+        """bool: Check whether the preview should be updated and return the value. If ``True`` is
+        returned then resets the refresh trigger back to ``False``"""
         if not self._active:
             return False
         retval = self._triggers["refresh"].is_set()
@@ -571,8 +631,8 @@ class PreviewInterface():
 
     @property
     def should_save(self) -> bool:
-        """ bool: Check whether a save request has been made. If ``True`` is returned then save
-        trigger is set back to ``False`` """
+        """bool: Check whether a save request has been made. If ``True`` is returned then save
+        trigger is set back to ``False``"""
         if not self._active:
             return False
         retval = self._triggers["save"].is_set()
@@ -583,14 +643,14 @@ class PreviewInterface():
 
     @property
     def should_quit(self) -> bool:
-        """ bool: Check whether an exit request has been made. ``True`` if an exit request has
+        """bool: Check whether an exit request has been made. ``True`` if an exit request has
         been made otherwise ``False``.
 
         Raises
         ------
         Error
             Re-raises any error within the preview thread
-         """
+        """
         if self._thread is None:
             return False
 
@@ -601,8 +661,8 @@ class PreviewInterface():
             logger.debug("Sending should stop")
         return retval
 
-    def _launch_thread(self) -> Optional[FSThread]:
-        """ Launch the preview viewer in it's own thread if preview has been selected
+    def _launch_thread(self) -> FSThread | None:
+        """Launch the preview viewer in it's own thread if preview has been selected
 
         Returns
         -------
@@ -611,15 +671,17 @@ class PreviewInterface():
         """
         if not self._active:
             return None
-        thread = FSThread(target=Preview,
-                          name="preview",
-                          args=(self._buffer, ),
-                          kwargs=dict(triggers=self._triggers))
+        thread = FSThread(
+            target=Preview,
+            name="preview",
+            args=(self._buffer,),
+            kwargs=dict(triggers=self._triggers),
+        )
         thread.start()
         return thread
 
     def shutdown(self) -> None:
-        """ Send a signal to shutdown the preview window. """
+        """Send a signal to shutdown the preview window."""
         if not self._active:
             return
         logger.debug("Sending shutdown to preview viewer")

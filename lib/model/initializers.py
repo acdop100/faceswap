@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """ Custom Initializers for faceswap.py """
+from __future__ import annotations
 
+import inspect
 import logging
 import sys
-import inspect
 
 import numpy as np
 import tensorflow as tf
@@ -16,13 +17,18 @@ if get_backend() == "amd":
     from keras import initializers
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.utils import get_custom_objects  # noqa pylint:disable=no-name-in-module,import-error
-    from tensorflow.keras import initializers, backend as K  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.utils import (
+        get_custom_objects,
+    )  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras import (
+        initializers,
+        backend as K,
+    )  # noqa pylint:disable=no-name-in-module,import-error
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-def compute_fans(shape, data_format='channels_last'):
+def compute_fans(shape, data_format="channels_last"):
     """Computes the number of input and output units for a weight shape.
 
     Ported directly from Keras as the location moves between keras and tensorflow-keras
@@ -53,16 +59,16 @@ def compute_fans(shape, data_format='channels_last'):
         # Assuming convolution kernels (1D, 2D or 3D).
         # Theano kernel shape: (depth, input_depth, ...)
         # Tensorflow kernel shape: (..., input_depth, depth)
-        if data_format == 'channels_first':
+        if data_format == "channels_first":
             receptive_field_size = np.prod(shape[2:])
             fan_in = shape[1] * receptive_field_size
             fan_out = shape[0] * receptive_field_size
-        elif data_format == 'channels_last':
+        elif data_format == "channels_last":
             receptive_field_size = np.prod(shape[:-2])
             fan_in = shape[-2] * receptive_field_size
             fan_out = shape[-1] * receptive_field_size
         else:
-            raise ValueError('Invalid data_format: ' + data_format)
+            raise ValueError("Invalid data_format: " + data_format)
     else:
         # No specific assumptions.
         fan_in = np.sqrt(np.prod(shape))
@@ -71,7 +77,7 @@ def compute_fans(shape, data_format='channels_last'):
 
 
 class ICNR(initializers.Initializer):  # pylint: disable=invalid-name,no-member
-    """ ICNR initializer for checkerboard artifact free sub pixel convolution
+    """ICNR initializer for checkerboard artifact free sub pixel convolution
 
     Parameters
     ----------
@@ -101,7 +107,7 @@ class ICNR(initializers.Initializer):  # pylint: disable=invalid-name,no-member
         self.initializer = initializer
 
     def __call__(self, shape, dtype="float32"):
-        """ Call function for the ICNR initializer.
+        """Call function for the ICNR initializer.
 
         Parameters
         ----------
@@ -118,23 +124,21 @@ class ICNR(initializers.Initializer):  # pylint: disable=invalid-name,no-member
         shape = list(shape)
         if self.scale == 1:
             return self.initializer(shape)
-        new_shape = shape[:3] + [shape[3] // (self.scale ** 2)]
+        new_shape = shape[:3] + [shape[3] // (self.scale**2)]
         if isinstance(self.initializer, dict):
             self.initializer = initializers.deserialize(self.initializer)
         var_x = self.initializer(new_shape, dtype)
         var_x = K.permute_dimensions(var_x, [2, 0, 1, 3])
-        var_x = K.resize_images(var_x,
-                                self.scale,
-                                self.scale,
-                                "channels_last",
-                                interpolation="nearest")
+        var_x = K.resize_images(
+            var_x, self.scale, self.scale, "channels_last", interpolation="nearest"
+        )
         var_x = self._space_to_depth(var_x)
         var_x = K.permute_dimensions(var_x, [1, 2, 0, 3])
         logger.debug("Output shape: %s", var_x.shape)
         return var_x
 
     def _space_to_depth(self, input_tensor):
-        """ Space to depth implementation.
+        """Space to depth implementation.
 
         PlaidML does not have a space to depth operation, so calculate if backend is amd
         otherwise returns the :func:`tensorflow.space_to_depth` operation.
@@ -153,26 +157,32 @@ class ICNR(initializers.Initializer):  # pylint: disable=invalid-name,no-member
             batch, height, width, depth = input_tensor.shape.dims
             new_height = height // self.scale
             new_width = width // self.scale
-            reshaped = K.reshape(input_tensor,
-                                 (batch, new_height, self.scale, new_width, self.scale, depth))
-            retval = K.reshape(K.permute_dimensions(reshaped, [0, 1, 3, 2, 4, 5]),
-                               (batch, new_height, new_width, -1))
+            reshaped = K.reshape(
+                input_tensor,
+                (batch, new_height, self.scale, new_width, self.scale, depth),
+            )
+            retval = K.reshape(
+                K.permute_dimensions(reshaped, [0, 1, 3, 2, 4, 5]),
+                (batch, new_height, new_width, -1),
+            )
         else:
-            retval = tf.nn.space_to_depth(input_tensor, block_size=self.scale, data_format="NHWC")
-        logger.debug("Input shape: %s, Output shape: %s", input_tensor.shape, retval.shape)
+            retval = tf.nn.space_to_depth(
+                input_tensor, block_size=self.scale, data_format="NHWC"
+            )
+        logger.debug(
+            "Input shape: %s, Output shape: %s", input_tensor.shape, retval.shape
+        )
         return retval
 
     def get_config(self):
-        """ Return the ICNR Initializer configuration.
+        """Return the ICNR Initializer configuration.
 
         Returns
         -------
         dict
             The configuration for ICNR Initialization
         """
-        config = {"scale": self.scale,
-                  "initializer": self.initializer
-                  }
+        config = {"scale": self.scale, "initializer": self.initializer}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -215,7 +225,7 @@ class ConvolutionAware(initializers.Initializer):  # pylint: disable=no-member
         self.initialized = initialized
 
     def __call__(self, shape, dtype=None):
-        """ Call function for the ICNR initializer.
+        """Call function for the ICNR initializer.
 
         Parameters
         ----------
@@ -232,7 +242,9 @@ class ConvolutionAware(initializers.Initializer):  # pylint: disable=no-member
         # TODO Tensorflow appears to pass in a :class:`tensorflow.python.framework.dtypes.DType`
         # object which causes this to error, so currently just reverts to default dtype if a string
         # is not passed in.
-        if self.initialized:   # Avoid re-calculating initializer when loading a saved model
+        if (
+            self.initialized
+        ):  # Avoid re-calculating initializer when loading a saved model
             return self.he_uniform(shape, dtype=dtype)
         dtype = K.floatx() if not isinstance(dtype, str) else dtype
         logger.info("Calculating Convolution Aware Initializer for shape: %s", shape)
@@ -273,30 +285,47 @@ class ConvolutionAware(initializers.Initializer):  # pylint: disable=no-member
 
         kernel_fourier_shape = correct_fft(np.zeros(kernel_shape)).shape
 
-        basis = self._create_basis(filters_size, stack_size, np.prod(kernel_fourier_shape), dtype)
-        basis = basis.reshape((filters_size, stack_size,) + kernel_fourier_shape)
+        basis = self._create_basis(
+            filters_size, stack_size, np.prod(kernel_fourier_shape), dtype
+        )
+        basis = basis.reshape(
+            (
+                filters_size,
+                stack_size,
+            )
+            + kernel_fourier_shape
+        )
         randoms = np.random.normal(0, self.eps_std, basis.shape[:-2] + kernel_shape)
         init = correct_ifft(basis, kernel_shape) + randoms
         init = self._scale_filters(init, variance)
         self.initialized = True
-        return K.variable(init.transpose(transpose_dimensions), dtype=dtype, name="conv_aware")
+        return K.variable(
+            init.transpose(transpose_dimensions), dtype=dtype, name="conv_aware"
+        )
 
     def _create_basis(self, filters_size, filters, size, dtype):
-        """ Create the basis for convolutional aware initialization """
-        logger.debug("filters_size: %s, filters: %s, size: %s, dtype: %s",
-                     filters_size, filters, size, dtype)
+        """Create the basis for convolutional aware initialization"""
+        logger.debug(
+            "filters_size: %s, filters: %s, size: %s, dtype: %s",
+            filters_size,
+            filters,
+            size,
+            dtype,
+        )
         if size == 1:
             return np.random.normal(0.0, self.eps_std, (filters_size, filters, size))
         nbb = filters // size + 1
         var_a = np.random.normal(0.0, 1.0, (filters_size, nbb, size, size))
         var_a = self._symmetrize(var_a)
         var_u = np.linalg.svd(var_a)[0].transpose(0, 1, 3, 2)
-        var_p = np.reshape(var_u, (filters_size, nbb * size, size))[:, :filters, :].astype(dtype)
+        var_p = np.reshape(var_u, (filters_size, nbb * size, size))[
+            :, :filters, :
+        ].astype(dtype)
         return var_p
 
     @staticmethod
     def _symmetrize(var_a):
-        """ Make the given tensor symmetrical. """
+        """Make the given tensor symmetrical."""
         var_b = np.transpose(var_a, axes=(0, 1, 3, 2))
         diag = var_a.diagonal(axis1=2, axis2=3)
         var_c = np.array([[np.diag(arr) for arr in batch] for batch in diag])
@@ -304,22 +333,20 @@ class ConvolutionAware(initializers.Initializer):  # pylint: disable=no-member
 
     @staticmethod
     def _scale_filters(filters, variance):
-        """ Scale the given filters. """
+        """Scale the given filters."""
         c_var = np.var(filters)
         var_p = np.sqrt(variance / c_var)
         return filters * var_p
 
     def get_config(self):
-        """ Return the Convolutional Aware Initializer configuration.
+        """Return the Convolutional Aware Initializer configuration.
 
         Returns
         -------
         dict
             The configuration for ICNR Initialization
         """
-        return dict(eps_std=self.eps_std,
-                    seed=self.seed,
-                    initialized=self.initialized)
+        return dict(eps_std=self.eps_std, seed=self.seed, initialized=self.initialized)
 
 
 # Update initializers into Keras custom objects

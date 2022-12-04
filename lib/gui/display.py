@@ -4,14 +4,17 @@
 This is the large right hand area of the GUI. At default, the Analysis tab is always displayed
 here. Further optional tabs will also be displayed depending on the currently executing Faceswap
 task. """
+from __future__ import annotations
 
-import logging
 import gettext
+import logging
 import tkinter as tk
 from tkinter import ttk
 
 from .display_analysis import Analysis
-from .display_command import GraphDisplay, PreviewExtract, PreviewTrain
+from .display_command import GraphDisplay
+from .display_command import PreviewExtract
+from .display_command import PreviewTrain
 from .utils import get_config
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -22,7 +25,7 @@ _ = _LANG.gettext
 
 
 class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
-    """ The tkinter Notebook that holds the display items.
+    """The tkinter Notebook that holds the display items.
 
     Parameters
     ----------
@@ -47,35 +50,34 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
 
     @property
     def running_task(self):
-        """ :class:`tkinter.BooleanVar`: The global tkinter variable that indicates whether a
-        Faceswap task is currently running or not. """
+        """:class:`tkinter.BooleanVar`: The global tkinter variable that indicates whether a
+        Faceswap task is currently running or not."""
         return self._running_task
 
     def _set_wrapper_var_trace(self):
-        """ Sets the trigger to update the displayed notebook's pages when the global tkinter
-        variable `display` is updated in the :class:`~lib.gui.wrapper.ProcessWrapper`. """
+        """Sets the trigger to update the displayed notebook's pages when the global tkinter
+        variable `display` is updated in the :class:`~lib.gui.wrapper.ProcessWrapper`."""
         logger.debug("Setting wrapper var trace")
         self._wrapper_var.trace("w", self._update_displaybook)
 
     def _add_static_tabs(self):
-        """ Add the tabs to the Display Notebook that are permanently displayed.
+        """Add the tabs to the Display Notebook that are permanently displayed.
 
         Currently this is just the `Analysis` tab.
         """
         logger.debug("Adding static tabs")
         for tab in ("job queue", "analysis"):
             if tab == "job queue":
-                continue    # Not yet implemented
+                continue  # Not yet implemented
             if tab == "analysis":
-                helptext = {"stats":
-                            _("Summary statistics for each training session")}
+                helptext = {"stats": _("Summary statistics for each training session")}
                 frame = Analysis(self, tab, helptext)
             else:
                 frame = self._add_frame()
                 self.add(frame, text=tab.title())
 
     def _add_frame(self):
-        """ Add a single frame for holding a static tab's contents.
+        """Add a single frame for holding a static tab's contents.
 
         Returns
         -------
@@ -88,7 +90,7 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
         return frame
 
     def _command_display(self, command):
-        """ Build the relevant command specific tabs based on the incoming Faceswap command.
+        """Build the relevant command specific tabs based on the incoming Faceswap command.
 
         Parameters
         ----------
@@ -99,7 +101,7 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
         build_tabs()
 
     def _extract_tabs(self, command="extract"):
-        """ Build the display tabs that are used for Faceswap extract and convert tasks.
+        """Build the display tabs that are used for Faceswap extract and convert tasks.
 
         Notes
         -----
@@ -115,7 +117,7 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
         logger.debug("Built extract tabs")
 
     def _train_tabs(self):
-        """ Build the display tabs that are used for the Faceswap train task."""
+        """Build the display tabs that are used for the Faceswap train task."""
         logger.debug("Build train tabs")
         for tab in ("graph", "preview"):
             if tab == "graph":
@@ -127,7 +129,7 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
         logger.debug("Built train tabs")
 
     def _convert_tabs(self):
-        """ Build the display tabs that are used for the Faceswap convert task.
+        """Build the display tabs that are used for the Faceswap convert task.
 
         Notes
         -----
@@ -138,20 +140,22 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
         logger.debug("Built convert tabs")
 
     def _remove_tabs(self):
-        """ Remove all optional displayed command specific tabs from the notebook. """
+        """Remove all optional displayed command specific tabs from the notebook."""
         for child in self.tabs():
             if child in self._static_tabs:
                 continue
             logger.debug("removing child: %s", child)
             child_name = child.split(".")[-1]
-            child_object = self.children.get(child_name)  # returns the OptionalDisplayPage object
+            child_object = self.children.get(
+                child_name
+            )  # returns the OptionalDisplayPage object
             if not child_object:
                 continue
             child_object.close()  # Call the OptionalDisplayPage close() method
             self.forget(child)
 
     def _update_displaybook(self, *args):  # pylint: disable=unused-argument
-        """ Callback to be executed when the global tkinter variable `display`
+        """Callback to be executed when the global tkinter variable `display`
         (:attr:`wrapper_var`) is updated when a Faceswap task is executed.
 
         Currently only updates when a core faceswap task (extract, train or convert) is executed.
@@ -169,7 +173,7 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
         self._command_display(command)
 
     def _on_tab_change(self, event):  # pylint:disable=unused-argument
-        """ Event trigger for tab change events.
+        """Event trigger for tab change events.
 
         Calls the selected tabs :func:`on_tab_select` method, if it exists, otherwise returns.
 
@@ -185,5 +189,7 @@ class DisplayNotebook(ttk.Notebook):  # pylint: disable=too-many-ancestors
             logger.debug("Calling on_tab_select for '%s'", selected_object)
             selected_object.on_tab_select()
         else:
-            logger.debug("Object does not have on_tab_select method. Returning: '%s'",
-                         selected_object)
+            logger.debug(
+                "Object does not have on_tab_select method. Returning: '%s'",
+                selected_object,
+            )

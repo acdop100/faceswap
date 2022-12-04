@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """ Holds the data cache for training data generators """
+from __future__ import annotations
+
 import logging
 import os
 import sys
-
 from threading import Lock
-from typing import cast, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import cast
+from typing import Dict
+from typing import get_args
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -13,13 +21,9 @@ from tqdm import tqdm
 
 from lib.align import DetectedFace
 from lib.align.aligned_face import CenteringType
-from lib.image import read_image_batch, read_image_meta_batch
+from lib.image import read_image_batch
+from lib.image import read_image_meta_batch
 from lib.utils import FaceswapError
-
-if sys.version_info < (3, 8):
-    from typing_extensions import get_args, Literal
-else:
-    from typing import get_args, Literal
 
 if TYPE_CHECKING:
     from .generator import ConfigType
@@ -27,15 +31,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_FACE_CACHES: Dict[str, "_Cache"] = {}
+_FACE_CACHES: dict[str, _Cache] = {}
 
 
-def get_cache(side: Literal["a", "b"],
-              filenames: Optional[List[str]] = None,
-              config: Optional["ConfigType"] = None,
-              size: Optional[int] = None,
-              coverage_ratio: Optional[float] = None) -> "_Cache":
-    """ Obtain a :class:`_Cache` object for the given side. If the object does not pre-exist then
+def get_cache(
+    side: Literal["a", "b"],
+    filenames: list[str] | None = None,
+    config: ConfigType | None = None,
+    size: int | None = None,
+    coverage_ratio: float | None = None,
+) -> _Cache:
+    """Obtain a :class:`_Cache` object for the given side. If the object does not pre-exist then
     create it.
 
     Parameters
@@ -63,19 +69,26 @@ def get_cache(side: Literal["a", "b"],
         The face meta information cache for the requested side
     """
     if not _FACE_CACHES.get(side):
-        assert config is not None, ("config must be provided for first call to cache")
-        assert filenames is not None, ("filenames must be provided for first call to cache")
-        assert size is not None, ("size must be provided for first call to cache")
-        assert coverage_ratio is not None, ("coverage_ratio must be provided for first call to "
-                                            "cache")
-        logger.debug("Creating cache. side: %s, size: %s, coverage_ratio: %s",
-                     side, size, coverage_ratio)
+        assert config is not None, "config must be provided for first call to cache"
+        assert (
+            filenames is not None
+        ), "filenames must be provided for first call to cache"
+        assert size is not None, "size must be provided for first call to cache"
+        assert coverage_ratio is not None, (
+            "coverage_ratio must be provided for first call to " "cache"
+        )
+        logger.debug(
+            "Creating cache. side: %s, size: %s, coverage_ratio: %s",
+            side,
+            size,
+            coverage_ratio,
+        )
         _FACE_CACHES[side] = _Cache(filenames, config, size, coverage_ratio)
     return _FACE_CACHES[side]
 
 
-def _check_reset(face_cache: "_Cache") -> bool:
-    """ Check whether a given cache needs to be reset because a face centering change has been
+def _check_reset(face_cache: _Cache) -> bool:
+    """Check whether a given cache needs to be reset because a face centering change has been
     detected in the other cache.
 
     Parameters
@@ -88,13 +101,15 @@ def _check_reset(face_cache: "_Cache") -> bool:
     bool
         ``True`` if the given object should reset the cache, otherwise ``False``
     """
-    check_cache = next((cache for cache in _FACE_CACHES.values() if cache != face_cache), None)
+    check_cache = next(
+        (cache for cache in _FACE_CACHES.values() if cache != face_cache), None
+    )
     retval = False if check_cache is None else check_cache.check_reset()
     return retval
 
 
-class _Cache():
-    """ A thread safe mechanism for collecting and holding face meta information (masks, "
+class _Cache:
+    """A thread safe mechanism for collecting and holding face meta information (masks, "
     "alignments data etc.) for multiple :class:`TrainingDataGenerator`s.
 
     Each side may have up to 3 generators (training, preview and time-lapse). To conserve VRAM
@@ -119,20 +134,28 @@ class _Cache():
     coverage_ratio: float
         The coverage ratio that the model is using.
     """
-    def __init__(self,
-                 filenames: List[str],
-                 config: "ConfigType",
-                 size: int,
-                 coverage_ratio: float) -> None:
-        logger.debug("Initializing: %s (filenames: %s, size: %s, coverage_ratio: %s)",
-                     self.__class__.__name__, len(filenames), size, coverage_ratio)
+
+    def __init__(
+        self,
+        filenames: list[str],
+        config: ConfigType,
+        size: int,
+        coverage_ratio: float,
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (filenames: %s, size: %s, coverage_ratio: %s)",
+            self.__class__.__name__,
+            len(filenames),
+            size,
+            coverage_ratio,
+        )
         self._lock = Lock()
         self._cache_info = dict(cache_full=False, has_reset=False)
-        self._partially_loaded: List[str] = []
+        self._partially_loaded: list[str] = []
 
         self._image_count = len(filenames)
-        self._cache: Dict[str, DetectedFace] = {}
-        self._aligned_landmarks: Dict[str, np.ndarray] = {}
+        self._cache: dict[str, DetectedFace] = {}
+        self._aligned_landmarks: dict[str, np.ndarray] = {}
         self._extract_version = 0.0
         self._size = size
 
@@ -146,47 +169,48 @@ class _Cache():
     @property
     def cache_full(self) -> bool:
         """bool: ``True`` if the cache has been fully populated. ``False`` if there are items still
-        to be cached. """
+        to be cached."""
         if self._cache_info["cache_full"]:
             return self._cache_info["cache_full"]
         with self._lock:
             return self._cache_info["cache_full"]
 
     @property
-    def aligned_landmarks(self) -> Dict[str, np.ndarray]:
-        """ dict: The filename as key, aligned landmarks as value. """
+    def aligned_landmarks(self) -> dict[str, np.ndarray]:
+        """dict: The filename as key, aligned landmarks as value."""
         # Note: Aligned landmarks are only used for warp-to-landmarks, so this can safely populate
         # all of the aligned landmarks for the entire cache.
         if not self._aligned_landmarks:
             with self._lock:
                 # For Warp-To-Landmarks a race condition can occur where this is referenced from
                 # the opposite side prior to it being populated, so block on a lock.
-                self._aligned_landmarks = {key: face.aligned.landmarks
-                                           for key, face in self._cache.items()}
+                self._aligned_landmarks = {
+                    key: face.aligned.landmarks for key, face in self._cache.items()
+                }
         return self._aligned_landmarks
 
     @property
     def size(self) -> int:
-        """ int: The pixel size of the cropped aligned face """
+        """int: The pixel size of the cropped aligned face"""
         return self._size
 
     def check_reset(self) -> bool:
-        """ Check whether this cache has been reset due to a face centering change, and reset the
+        """Check whether this cache has been reset due to a face centering change, and reset the
         flag if it has.
 
         Returns
         -------
         bool
             ``True`` if the cache has been reset because of a face centering change due to
-            legacy alignments, otherwise ``False``. """
+            legacy alignments, otherwise ``False``."""
         retval = self._cache_info["has_reset"]
         if retval:
             logger.debug("Resetting 'has_reset' flag")
             self._cache_info["has_reset"] = False
         return retval
 
-    def get_items(self, filenames: List[str]) -> List[DetectedFace]:
-        """ Obtain the cached items for a list of filenames. The returned list is in the same order
+    def get_items(self, filenames: list[str]) -> list[DetectedFace]:
+        """Obtain the cached items for a list of filenames. The returned list is in the same order
         as the provided filenames.
 
         Parameters
@@ -202,8 +226,8 @@ class _Cache():
         """
         return [self._cache[os.path.basename(filename)] for filename in filenames]
 
-    def cache_metadata(self, filenames: List[str]) -> np.ndarray:
-        """ Obtain the batch with metadata for items that need caching and cache DetectedFace
+    def cache_metadata(self, filenames: list[str]) -> np.ndarray:
+        """Obtain the batch with metadata for items that need caching and cache DetectedFace
         objects to :attr:`_cache`.
 
         Parameters
@@ -221,9 +245,11 @@ class _Cache():
             if _check_reset(self):
                 self._reset_cache(False)
 
-            needs_cache = [filename
-                           for filename, key in zip(filenames, keys)
-                           if key not in self._cache or key in self._partially_loaded]
+            needs_cache = [
+                filename
+                for filename, key in zip(filenames, keys)
+                if key not in self._cache or key in self._partially_loaded
+            ]
             logger.trace("Needs cache: %s", needs_cache)  # type: ignore
 
             if not needs_cache:
@@ -237,10 +263,13 @@ class _Cache():
                 folder = os.path.dirname(filenames[0])
                 details = [
                     f"{key} ({f'{img.shape[1]}px' if isinstance(img, np.ndarray) else type(img)})"
-                    for key, img in zip(keys, batch)]
-                msg = (f"There are mismatched image sizes in the folder '{folder}'. All training "
-                       "images for each side must have the same dimensions.\nThe batch that "
-                       f"failed contains the following files:\n{details}.")
+                    for key, img in zip(keys, batch)
+                ]
+                msg = (
+                    f"There are mismatched image sizes in the folder '{folder}'. All training "
+                    "images for each side must have the same dimensions.\nThe batch that "
+                    f"failed contains the following files:\n{details}."
+                )
                 raise FaceswapError(msg)
 
             # Populate items into cache
@@ -254,21 +283,25 @@ class _Cache():
                     self._partially_loaded.remove(key)
                     detected_face = self._cache[key]
                 else:
-                    detected_face = self._load_detected_face(filename, meta["alignments"])
+                    detected_face = self._load_detected_face(
+                        filename, meta["alignments"]
+                    )
 
                 self._prepare_masks(filename, detected_face)
                 self._cache[key] = detected_face
 
             # Update the :attr:`cache_full` attribute
-            cache_full = not self._partially_loaded and len(self._cache) == self._image_count
+            cache_full = (
+                not self._partially_loaded and len(self._cache) == self._image_count
+            )
             if cache_full:
                 logger.verbose("Cache filled: '%s'", os.path.dirname(filenames[0]))  # type: ignore
                 self._cache_info["cache_full"] = cache_full
 
         return batch
 
-    def pre_fill(self, filenames: List[str], side: Literal["a", "b"]) -> None:
-        """ When warp to landmarks is enabled, the cache must be pre-filled, as each side needs
+    def pre_fill(self, filenames: list[str], side: Literal["a", "b"]) -> None:
+        """When warp to landmarks is enabled, the cache must be pre-filled, as each side needs
         access to the other side's alignments.
 
         Parameters
@@ -279,12 +312,16 @@ class _Cache():
             `"a"` or `"b"`. The side of the model being cached. Used for info output
         """
         with self._lock:
-            for filename, meta in tqdm(read_image_meta_batch(filenames),
-                                       desc=f"WTL: Caching Landmarks ({side.upper()})",
-                                       total=len(filenames),
-                                       leave=False):
+            for filename, meta in tqdm(
+                read_image_meta_batch(filenames),
+                desc=f"WTL: Caching Landmarks ({side.upper()})",
+                total=len(filenames),
+                leave=False,
+            ):
                 if "itxt" not in meta or "alignments" not in meta["itxt"]:
-                    raise FaceswapError(f"Invalid face image found. Aborting: '{filename}'")
+                    raise FaceswapError(
+                        f"Invalid face image found. Aborting: '{filename}'"
+                    )
 
                 meta = meta["itxt"]
                 key = os.path.basename(filename)
@@ -294,8 +331,8 @@ class _Cache():
                 self._cache[key] = detected_face
                 self._partially_loaded.append(key)
 
-    def _validate_version(self, png_meta: "PNGHeaderDict", filename: str) -> None:
-        """ Validate that there are not a mix of v1.0 extracted faces and v2.x faces.
+    def _validate_version(self, png_meta: PNGHeaderDict, filename: str) -> None:
+        """Validate that there are not a mix of v1.0 extracted faces and v2.x faces.
 
         Parameters
         ----------
@@ -319,15 +356,18 @@ class _Cache():
             return
 
         if (self._extract_version == 1.0 and alignment_version > 1.0) or (
-                alignment_version == 1.0 and self._extract_version > 1.0):
-            raise FaceswapError("Mixing legacy and full head extracted facesets is not supported. "
-                                "The following folder contains a mix of extracted face types: "
-                                f"'{os.path.dirname(filename)}'")
+            alignment_version == 1.0 and self._extract_version > 1.0
+        ):
+            raise FaceswapError(
+                "Mixing legacy and full head extracted facesets is not supported. "
+                "The following folder contains a mix of extracted face types: "
+                f"'{os.path.dirname(filename)}'"
+            )
 
         self._extract_version = min(alignment_version, self._extract_version)
 
     def _reset_cache(self, set_flag: bool) -> None:
-        """ In the event that a legacy extracted face has been seen, and centering is not legacy
+        """In the event that a legacy extracted face has been seen, and centering is not legacy
         the cache will need to be reset for legacy centering.
 
         Parameters
@@ -338,9 +378,11 @@ class _Cache():
             has detected a reset flag from the opposite cache.
         """
         if set_flag:
-            logger.warning("You are using legacy extracted faces but have selected '%s' centering "
-                           "which is incompatible. Switching centering to 'legacy'",
-                           self._centering)
+            logger.warning(
+                "You are using legacy extracted faces but have selected '%s' centering "
+                "which is incompatible. Switching centering to 'legacy'",
+                self._centering,
+            )
         self._config["centering"] = "legacy"
         self._centering = "legacy"
         self._cache = {}
@@ -348,10 +390,10 @@ class _Cache():
         if set_flag:
             self._cache_info["has_reset"] = True
 
-    def _load_detected_face(self,
-                            filename: str,
-                            alignments: "PNGHeaderAlignmentsDict") -> DetectedFace:
-        """ Load a :class:`DetectedFace` object and load its associated `aligned` property.
+    def _load_detected_face(
+        self, filename: str, alignments: PNGHeaderAlignmentsDict
+    ) -> DetectedFace:
+        """Load a :class:`DetectedFace` object and load its associated `aligned` property.
 
         Parameters
         ----------
@@ -367,17 +409,19 @@ class _Cache():
         """
         detected_face = DetectedFace()
         detected_face.from_png_meta(alignments)
-        detected_face.load_aligned(None,
-                                   size=self._size,
-                                   centering=self._centering,
-                                   coverage_ratio=self._coverage_ratio,
-                                   is_aligned=True,
-                                   is_legacy=self._extract_version == 1.0)
+        detected_face.load_aligned(
+            None,
+            size=self._size,
+            centering=self._centering,
+            coverage_ratio=self._coverage_ratio,
+            is_aligned=True,
+            is_legacy=self._extract_version == 1.0,
+        )
         logger.trace("Cached aligned face for: %s", filename)  # type: ignore
         return detected_face
 
     def _prepare_masks(self, filename: str, detected_face: DetectedFace) -> None:
-        """ Prepare the masks required from training, and compile into a single compressed array
+        """Prepare the masks required from training, and compile into a single compressed array
 
         Parameters
         ----------
@@ -393,8 +437,10 @@ class _Cache():
         detected_face.store_training_masks(masks, delete_masks=True)
         logger.trace("Stored masks for filename: %s)", filename)  # type: ignore
 
-    def _get_face_mask(self, filename: str, detected_face: DetectedFace) -> Optional[np.ndarray]:
-        """ Obtain the training sized face mask from the :class:`DetectedFace` for the requested
+    def _get_face_mask(
+        self, filename: str, detected_face: DetectedFace
+    ) -> np.ndarray | None:
+        """Obtain the training sized face mask from the :class:`DetectedFace` for the requested
         mask type.
 
         Parameters
@@ -422,32 +468,38 @@ class _Cache():
                 f"You have selected the mask type '{self._config['mask_type']}' but at least one "
                 "face does not contain the selected mask.\n"
                 f"The face that failed was: '{filename}'\n"
-                f"The masks that exist for this face are: {list(detected_face.mask)}")
+                f"The masks that exist for this face are: {list(detected_face.mask)}"
+            )
 
         mask = detected_face.mask[str(self._config["mask_type"])]
-        mask.set_blur_and_threshold(blur_kernel=int(self._config["mask_blur_kernel"]),
-                                    threshold=int(self._config["mask_threshold"]))
+        mask.set_blur_and_threshold(
+            blur_kernel=int(self._config["mask_blur_kernel"]),
+            threshold=int(self._config["mask_threshold"]),
+        )
 
         pose = detected_face.aligned.pose
-        mask.set_sub_crop(pose.offset[mask.stored_centering],
-                          pose.offset[self._centering],
-                          self._centering,
-                          self._coverage_ratio)
+        mask.set_sub_crop(
+            pose.offset[mask.stored_centering],
+            pose.offset[self._centering],
+            self._centering,
+            self._coverage_ratio,
+        )
         face_mask = mask.mask
         if self._size != face_mask.shape[0]:
-            interpolator = cv2.INTER_CUBIC if mask.stored_size < self._size else cv2.INTER_AREA
-            face_mask = cv2.resize(face_mask,
-                                   (self._size, self._size),
-                                   interpolation=interpolator)[..., None]
+            interpolator = (
+                cv2.INTER_CUBIC if mask.stored_size < self._size else cv2.INTER_AREA
+            )
+            face_mask = cv2.resize(
+                face_mask, (self._size, self._size), interpolation=interpolator
+            )[..., None]
 
         logger.trace("Obtained face mask for: %s %s", filename, face_mask.shape)  # type: ignore
         return face_mask
 
-    def _get_localized_mask(self,
-                            filename: str,
-                            detected_face: DetectedFace,
-                            area: Literal["eye", "mouth"]) -> Optional[np.ndarray]:
-        """ Obtain a localized mask for the given area if it is required for training.
+    def _get_localized_mask(
+        self, filename: str, detected_face: DetectedFace, area: Literal["eye", "mouth"]
+    ) -> np.ndarray | None:
+        """Obtain a localized mask for the given area if it is required for training.
 
         Parameters
         ----------
@@ -458,16 +510,23 @@ class _Cache():
         area: str
             `"eye"` or `"mouth"`. The area of the face to obtain the mask for
         """
-        if not self._config["penalized_mask_loss"] or int(self._config[f"{area}_multiplier"]) <= 1:
+        if (
+            not self._config["penalized_mask_loss"]
+            or int(self._config[f"{area}_multiplier"]) <= 1
+        ):
             return None
         mask = detected_face.get_landmark_mask(area, self._size // 16, self._size // 32)
-        logger.trace("Caching localized '%s' mask for: %s %s",  # type: ignore
-                     area, filename, mask.shape)
+        logger.trace(
+            "Caching localized '%s' mask for: %s %s",  # type: ignore
+            area,
+            filename,
+            mask.shape,
+        )
         return mask
 
 
-class RingBuffer():  # pylint: disable=too-few-public-methods
-    """ Rolling buffer for holding training/preview batches
+class RingBuffer:  # pylint: disable=too-few-public-methods
+    """Rolling buffer for holding training/preview batches
 
     Parameters
     ----------
@@ -480,22 +539,33 @@ class RingBuffer():  # pylint: disable=too-few-public-methods
     dtype: str, optional
         The datatype to create the buffer as. Default: `"uint8"`
     """
-    def __init__(self,
-                 batch_size: int,
-                 image_shape: Tuple[int, int, int],
-                 buffer_size: int = 2,
-                 dtype: str = "uint8") -> None:
-        logger.debug("Initializing: %s (batch_size: %s, image_shape: %s, buffer_size: %s, "
-                     "dtype: %s", self.__class__.__name__, batch_size, image_shape, buffer_size,
-                     dtype)
+
+    def __init__(
+        self,
+        batch_size: int,
+        image_shape: tuple[int, int, int],
+        buffer_size: int = 2,
+        dtype: str = "uint8",
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (batch_size: %s, image_shape: %s, buffer_size: %s, "
+            "dtype: %s",
+            self.__class__.__name__,
+            batch_size,
+            image_shape,
+            buffer_size,
+            dtype,
+        )
         self._max_index = buffer_size - 1
         self._index = 0
-        self._buffer = [np.empty((batch_size, *image_shape), dtype=dtype)
-                        for _ in range(buffer_size)]
+        self._buffer = [
+            np.empty((batch_size, *image_shape), dtype=dtype)
+            for _ in range(buffer_size)
+        ]
         logger.debug("Initialized: %s", self.__class__.__name__)  # type: ignore
 
     def __call__(self) -> np.ndarray:
-        """ Obtain the next array from the ring buffer
+        """Obtain the next array from the ring buffer
 
         Returns
         -------

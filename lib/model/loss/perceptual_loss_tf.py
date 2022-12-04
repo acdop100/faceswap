@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """ TF Keras implementation of Perceptual Loss Functions for faceswap.py """
+from __future__ import annotations
 
 import logging
 import sys
-
-from typing import Dict, Optional, Tuple
+from typing import Dict
+from typing import Literal
+from typing import Optional
+from typing import Tuple
 
 import numpy as np
 import tensorflow as tf
-
-# Ignore linting errors from Tensorflow's thoroughly broken import system
 from tensorflow.keras import backend as K  # pylint:disable=import-error
 
-from lib.keras_utils import ColorSpaceConvert, frobenius_norm, replicate_pad
+from lib.keras_utils import ColorSpaceConvert
+from lib.keras_utils import frobenius_norm
+from lib.keras_utils import replicate_pad
 
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+# Ignore linting errors from Tensorflow's thoroughly broken import system
 
 logger = logging.getLogger(__name__)
 
 
-class DSSIMObjective():  # pylint:disable=too-few-public-methods
-    """ DSSIM Loss Functions
+class DSSIMObjective:  # pylint:disable=too-few-public-methods
+    """DSSIM Loss Functions
 
     Difference of Structural Similarity (DSSIM loss function).
 
@@ -50,12 +50,15 @@ class DSSIMObjective():  # pylint:disable=too-few-public-methods
     ------
     You should add a regularization term like a l2 loss in addition to this one.
     """
-    def __init__(self,
-                 k_1: float = 0.01,
-                 k_2: float = 0.03,
-                 filter_size: int = 11,
-                 filter_sigma: float = 1.5,
-                 max_value: float = 1.0) -> None:
+
+    def __init__(
+        self,
+        k_1: float = 0.01,
+        k_2: float = 0.03,
+        filter_size: int = 11,
+        filter_sigma: float = 1.5,
+        max_value: float = 1.0,
+    ) -> None:
         self._filter_size = filter_size
         self._filter_sigma = filter_sigma
         self._kernel = self._get_kernel()
@@ -65,7 +68,7 @@ class DSSIMObjective():  # pylint:disable=too-few-public-methods
         self._c2 = ((k_2 * max_value) ** 2) * compensation
 
     def _get_kernel(self) -> tf.Tensor:
-        """ Obtain the base kernel for performing depthwise convolution.
+        """Obtain the base kernel for performing depthwise convolution.
 
         Returns
         -------
@@ -73,7 +76,7 @@ class DSSIMObjective():  # pylint:disable=too-few-public-methods
             The gaussian kernel based on selected size and sigma
         """
         coords = np.arange(self._filter_size, dtype="float32")
-        coords -= (self._filter_size - 1) / 2.
+        coords -= (self._filter_size - 1) / 2.0
 
         kernel = np.square(coords)
         kernel *= -0.5 / np.square(self._filter_sigma)
@@ -85,7 +88,7 @@ class DSSIMObjective():  # pylint:disable=too-few-public-methods
 
     @classmethod
     def _depthwise_conv2d(cls, image: tf.Tensor, kernel: tf.Tensor) -> tf.Tensor:
-        """ Perform a standardized depthwise convolution.
+        """Perform a standardized depthwise convolution.
 
         Parameters
         ----------
@@ -101,8 +104,10 @@ class DSSIMObjective():  # pylint:disable=too-few-public-methods
         """
         return K.depthwise_conv2d(image, kernel, strides=(1, 1), padding="valid")
 
-    def _get_ssim(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
-        """ Obtain the structural similarity between a batch of true and predicted images.
+    def _get_ssim(
+        self, y_true: tf.Tensor, y_pred: tf.Tensor
+    ) -> tuple[tf.Tensor, tf.Tensor]:
+        """Obtain the structural similarity between a batch of true and predicted images.
 
         Parameters
         ----------
@@ -142,7 +147,7 @@ class DSSIMObjective():  # pylint:disable=too-few-public-methods
         return ssim, contrast
 
     def __call__(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """ Call the DSSIM  or MS-DSSIM Loss Function.
+        """Call the DSSIM  or MS-DSSIM Loss Function.
 
         Parameters
         ----------
@@ -157,12 +162,12 @@ class DSSIMObjective():  # pylint:disable=too-few-public-methods
             The DSSIM or MS-DSSIM for the given images
         """
         ssim = self._get_ssim(y_true, y_pred)[0]
-        retval = (1. - ssim) / 2.0
+        retval = (1.0 - ssim) / 2.0
         return K.mean(retval)
 
 
-class GMSDLoss():  # pylint:disable=too-few-public-methods
-    """ Gradient Magnitude Similarity Deviation Loss.
+class GMSDLoss:  # pylint:disable=too-few-public-methods
+    """Gradient Magnitude Similarity Deviation Loss.
 
     Improved image quality metric over MS-SSIM with easier calculations
 
@@ -171,8 +176,9 @@ class GMSDLoss():  # pylint:disable=too-few-public-methods
     http://www4.comp.polyu.edu.hk/~cslzhang/IQA/GMSD/GMSD.htm
     https://arxiv.org/ftp/arxiv/papers/1308/1308.3052.pdf
     """
+
     def __call__(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """ Return the Gradient Magnitude Similarity Deviation Loss.
+        """Return the Gradient Magnitude Similarity Deviation Loss.
 
         Parameters
         ----------
@@ -198,7 +204,7 @@ class GMSDLoss():  # pylint:disable=too-few-public-methods
 
     @classmethod
     def _scharr_edges(cls, image: tf.Tensor, magnitude: bool) -> tf.Tensor:
-        """ Returns a tensor holding modified Scharr edge maps.
+        """Returns a tensor holding modified Scharr edge maps.
 
         Parameters
         ----------
@@ -221,41 +227,57 @@ class GMSDLoss():  # pylint:disable=too-few-public-methods
         image_shape = K.shape(image)
 
         # 5x5 modified Scharr kernel ( reshape to (5,5,1,2) )
-        matrix = np.array([[[[0.00070, 0.00070]],
-                            [[0.00520, 0.00370]],
-                            [[0.03700, 0.00000]],
-                            [[0.00520, -0.0037]],
-                            [[0.00070, -0.0007]]],
-                           [[[0.00370, 0.00520]],
-                            [[0.11870, 0.11870]],
-                            [[0.25890, 0.00000]],
-                            [[0.11870, -0.1187]],
-                            [[0.00370, -0.0052]]],
-                           [[[0.00000, 0.03700]],
-                            [[0.00000, 0.25890]],
-                            [[0.00000, 0.00000]],
-                            [[0.00000, -0.2589]],
-                            [[0.00000, -0.0370]]],
-                           [[[-0.0037, 0.00520]],
-                            [[-0.1187, 0.11870]],
-                            [[-0.2589, 0.00000]],
-                            [[-0.1187, -0.1187]],
-                            [[-0.0037, -0.0052]]],
-                           [[[-0.0007, 0.00070]],
-                            [[-0.0052, 0.00370]],
-                            [[-0.0370, 0.00000]],
-                            [[-0.0052, -0.0037]],
-                            [[-0.0007, -0.0007]]]])
+        matrix = np.array(
+            [
+                [
+                    [[0.00070, 0.00070]],
+                    [[0.00520, 0.00370]],
+                    [[0.03700, 0.00000]],
+                    [[0.00520, -0.0037]],
+                    [[0.00070, -0.0007]],
+                ],
+                [
+                    [[0.00370, 0.00520]],
+                    [[0.11870, 0.11870]],
+                    [[0.25890, 0.00000]],
+                    [[0.11870, -0.1187]],
+                    [[0.00370, -0.0052]],
+                ],
+                [
+                    [[0.00000, 0.03700]],
+                    [[0.00000, 0.25890]],
+                    [[0.00000, 0.00000]],
+                    [[0.00000, -0.2589]],
+                    [[0.00000, -0.0370]],
+                ],
+                [
+                    [[-0.0037, 0.00520]],
+                    [[-0.1187, 0.11870]],
+                    [[-0.2589, 0.00000]],
+                    [[-0.1187, -0.1187]],
+                    [[-0.0037, -0.0052]],
+                ],
+                [
+                    [[-0.0007, 0.00070]],
+                    [[-0.0052, 0.00370]],
+                    [[-0.0370, 0.00000]],
+                    [[-0.0052, -0.0037]],
+                    [[-0.0007, -0.0007]],
+                ],
+            ]
+        )
         num_kernels = [2]
-        kernels = K.constant(matrix, dtype='float32')
+        kernels = K.constant(matrix, dtype="float32")
         kernels = K.tile(kernels, [1, 1, image_shape[-1], 1])
 
         # Use depth-wise convolution to calculate edge maps per channel.
         # Output tensor has shape [batch_size, h, w, d * num_kernels].
         pad_sizes = [[0, 0], [2, 2], [2, 2], [0, 0]]
-        padded = tf.pad(image,  # pylint:disable=unexpected-keyword-arg,no-value-for-parameter
-                        pad_sizes,
-                        mode='REFLECT')
+        padded = tf.pad(
+            image,  # pylint:disable=unexpected-keyword-arg,no-value-for-parameter
+            pad_sizes,
+            mode="REFLECT",
+        )
         output = K.depthwise_conv2d(padded, kernels)
 
         if not magnitude:  # direction of edges
@@ -263,13 +285,15 @@ class GMSDLoss():  # pylint:disable=too-few-public-methods
             shape = K.concatenate([image_shape, num_kernels], axis=0)
             output = K.reshape(output, shape=shape)
             output.set_shape(static_image_shape.concatenate(num_kernels))
-            output = tf.atan(K.squeeze(output[:, :, :, :, 0] / output[:, :, :, :, 1], axis=None))
+            output = tf.atan(
+                K.squeeze(output[:, :, :, :, 0] / output[:, :, :, :, 1], axis=None)
+            )
         # magnitude of edges -- unified x & y edges don't work well with Neural Networks
         return output
 
 
-class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
-    """ Computes the LDR-FLIP error map between two LDR images, assuming the images are observed
+class LDRFLIPLoss:  # pylint:disable=too-few-public-methods
+    """Computes the LDR-FLIP error map between two LDR images, assuming the images are observed
     at a certain number of pixels per degree of visual angle.
 
     References
@@ -324,19 +348,30 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
     color_order: str
         The `"BGR"` or `"RGB"` color order of the incoming images
     """
-    def __init__(self,
-                 computed_distance_exponent: float = 0.7,
-                 feature_exponent: float = 0.5,
-                 lower_threshold_exponent: float = 0.4,
-                 upper_threshold_exponent: float = 0.95,
-                 epsilon: float = 1e-15,
-                 pixels_per_degree: Optional[float] = None,
-                 color_order: Literal["bgr", "rgb"] = "bgr") -> None:
-        logger.debug("Initializing: %s (computed_distance_exponent '%s', feature_exponent: %s, "
-                     "lower_threshold_exponent: %s, upper_threshold_exponent: %s, epsilon: %s, "
-                     "pixels_per_degree: %s, color_order: %s)", self.__class__.__name__,
-                     computed_distance_exponent, feature_exponent, lower_threshold_exponent,
-                     upper_threshold_exponent, epsilon, pixels_per_degree, color_order)
+
+    def __init__(
+        self,
+        computed_distance_exponent: float = 0.7,
+        feature_exponent: float = 0.5,
+        lower_threshold_exponent: float = 0.4,
+        upper_threshold_exponent: float = 0.95,
+        epsilon: float = 1e-15,
+        pixels_per_degree: float | None = None,
+        color_order: Literal["bgr", "rgb"] = "bgr",
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (computed_distance_exponent '%s', feature_exponent: %s, "
+            "lower_threshold_exponent: %s, upper_threshold_exponent: %s, epsilon: %s, "
+            "pixels_per_degree: %s, color_order: %s)",
+            self.__class__.__name__,
+            computed_distance_exponent,
+            feature_exponent,
+            lower_threshold_exponent,
+            upper_threshold_exponent,
+            epsilon,
+            pixels_per_degree,
+            color_order,
+        )
 
         self._computed_distance_exponent = computed_distance_exponent
         self._feature_exponent = feature_exponent
@@ -353,7 +388,7 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
         logger.debug("Initialized: %s ", self.__class__.__name__)
 
     def __call__(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """ Call the LDR Flip Loss Function
+        """Call the LDR Flip Loss Function
 
         Parameters
         ----------
@@ -371,8 +406,8 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
             y_true = y_true[..., 2::-1]
             y_pred = y_pred[..., 2::-1]
 
-        y_true = K.clip(y_true, 0, 1.)
-        y_pred = K.clip(y_pred, 0, 1.)
+        y_true = K.clip(y_true, 0, 1.0)
+        y_pred = K.clip(y_pred, 0, 1.0)
 
         rgb2ycxcz = ColorSpaceConvert("srgb", "ycxcz")
         true_ycxcz = rgb2ycxcz(y_true)
@@ -385,7 +420,7 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
         return loss
 
     def _color_pipeline(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """ Perform the color processing part of the FLIP loss function
+        """Perform the color processing part of the FLIP loss function
 
         Parameters
         ----------
@@ -406,19 +441,23 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
         rgb2lab = ColorSpaceConvert(from_space="rgb", to_space="lab")
         preprocessed_true = self._hunt_adjustment(rgb2lab(filtered_true))
         preprocessed_pred = self._hunt_adjustment(rgb2lab(filtered_pred))
-        hunt_adjusted_green = self._hunt_adjustment(rgb2lab(K.constant([[[[0.0, 1.0, 0.0]]]],
-                                                                       dtype="float32")))
-        hunt_adjusted_blue = self._hunt_adjustment(rgb2lab(K.constant([[[[0.0, 0.0, 1.0]]]],
-                                                                      dtype="float32")))
+        hunt_adjusted_green = self._hunt_adjustment(
+            rgb2lab(K.constant([[[[0.0, 1.0, 0.0]]]], dtype="float32"))
+        )
+        hunt_adjusted_blue = self._hunt_adjustment(
+            rgb2lab(K.constant([[[[0.0, 0.0, 1.0]]]], dtype="float32"))
+        )
 
         delta = self._hyab(preprocessed_true, preprocessed_pred)
         power_delta = K.pow(delta, self._computed_distance_exponent)
-        cmax = K.pow(self._hyab(hunt_adjusted_green, hunt_adjusted_blue),
-                     self._computed_distance_exponent)
+        cmax = K.pow(
+            self._hyab(hunt_adjusted_green, hunt_adjusted_blue),
+            self._computed_distance_exponent,
+        )
         return self._redistribute_errors(power_delta, cmax)
 
     def _process_features(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """ Perform the color processing part of the FLIP loss function
+        """Perform the color processing part of the FLIP loss function
 
         Parameters
         ----------
@@ -432,23 +471,25 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
         :class:`tensorflow.Tensor`
             The exponentiated features delta
         """
-        col_y_true = (y_true[..., 0:1] + 16) / 116.
-        col_y_pred = (y_pred[..., 0:1] + 16) / 116.
+        col_y_true = (y_true[..., 0:1] + 16) / 116.0
+        col_y_pred = (y_pred[..., 0:1] + 16) / 116.0
 
         edges_true = self._feature_detector(col_y_true, "edge")
         points_true = self._feature_detector(col_y_true, "point")
         edges_pred = self._feature_detector(col_y_pred, "edge")
         points_pred = self._feature_detector(col_y_pred, "point")
 
-        delta = K.maximum(K.abs(frobenius_norm(edges_true) - frobenius_norm(edges_pred)),
-                          K.abs(frobenius_norm(points_pred) - frobenius_norm(points_true)))
+        delta = K.maximum(
+            K.abs(frobenius_norm(edges_true) - frobenius_norm(edges_pred)),
+            K.abs(frobenius_norm(points_pred) - frobenius_norm(points_true)),
+        )
 
         delta = K.clip(delta, min_value=self._epsilon, max_value=None)
         return K.pow(((1 / np.sqrt(2)) * delta), self._feature_exponent)
 
     @classmethod
     def _hunt_adjustment(cls, image: tf.Tensor) -> tf.Tensor:
-        """ Apply Hunt-adjustment to an image in L*a*b* color space
+        """Apply Hunt-adjustment to an image in L*a*b* color space
 
         Parameters
         ----------
@@ -465,7 +506,7 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
         return adjusted
 
     def _hyab(self, y_true, y_pred):
-        """ Compute the HyAB distance between true and predicted images.
+        """Compute the HyAB distance between true and predicted images.
 
         Parameters
         ----------
@@ -480,12 +521,14 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
             image tensor containing the per-pixel HyAB distances between true and predicted images
         """
         delta = y_true - y_pred
-        root = K.sqrt(K.clip(K.pow(delta[..., 0:1], 2), min_value=self._epsilon, max_value=None))
+        root = K.sqrt(
+            K.clip(K.pow(delta[..., 0:1], 2), min_value=self._epsilon, max_value=None)
+        )
         delta_norm = frobenius_norm(delta[..., 1:3])
         return root + delta_norm
 
     def _redistribute_errors(self, power_delta_e_hyab, cmax):
-        """ Redistribute exponentiated HyAB errors to the [0,1] range
+        """Redistribute exponentiated HyAB errors to the [0,1] range
 
         Parameters
         ----------
@@ -504,12 +547,14 @@ class LDRFLIPLoss():  # pylint:disable=too-few-public-methods
         delta_e_c = K.switch(
             power_delta_e_hyab < pccmax,
             (self._pt / pccmax) * power_delta_e_hyab,
-            self._pt + ((power_delta_e_hyab - pccmax) / (cmax - pccmax)) * (1.0 - self._pt))
+            self._pt
+            + ((power_delta_e_hyab - pccmax) / (cmax - pccmax)) * (1.0 - self._pt),
+        )
         return delta_e_c
 
 
-class _SpatialFilters():  # pylint:disable=too-few-public-methods
-    """ Filters an image with channel specific spatial contrast sensitivity functions and clips
+class _SpatialFilters:  # pylint:disable=too-few-public-methods
+    """Filters an image with channel specific spatial contrast sensitivity functions and clips
     result to the unit cube in linear RGB.
 
     For use with LDRFlipLoss.
@@ -520,13 +565,14 @@ class _SpatialFilters():  # pylint:disable=too-few-public-methods
         The estimated number of pixels per degree of visual angle of the observer. This effectively
         impacts the tolerance when calculating loss.
     """
+
     def __init__(self, pixels_per_degree: float) -> None:
         self._pixels_per_degree = pixels_per_degree
         self._spatial_filters, self._radius = self._generate_spatial_filters()
         self._ycxcz2rgb = ColorSpaceConvert(from_space="ycxcz", to_space="rgb")
 
-    def _generate_spatial_filters(self) -> Tuple[tf.Tensor, int]:
-        """ Generates spatial contrast sensitivity filters with width depending on the number of
+    def _generate_spatial_filters(self) -> tuple[tf.Tensor, int]:
+        """Generates spatial contrast sensitivity filters with width depending on the number of
         pixels per degree of visual angle of the observer for channels "A", "RG" and "BY"
 
         Returns
@@ -536,51 +582,69 @@ class _SpatialFilters():  # pylint:disable=too-few-public-methods
             key with the Filter kernel corresponding to the spatial contrast sensitivity function
             of channel and kernel's radius
         """
-        mapping = dict(A=dict(a1=1, b1=0.0047, a2=0, b2=1e-5),
-                       RG=dict(a1=1, b1=0.0053, a2=0, b2=1e-5),
-                       BY=dict(a1=34.1, b1=0.04, a2=13.5, b2=0.025))
+        mapping = dict(
+            A=dict(a1=1, b1=0.0047, a2=0, b2=1e-5),
+            RG=dict(a1=1, b1=0.0053, a2=0, b2=1e-5),
+            BY=dict(a1=34.1, b1=0.04, a2=13.5, b2=0.025),
+        )
 
-        domain, radius = self._get_evaluation_domain(mapping["A"]["b1"],
-                                                     mapping["A"]["b2"],
-                                                     mapping["RG"]["b1"],
-                                                     mapping["RG"]["b2"],
-                                                     mapping["BY"]["b1"],
-                                                     mapping["BY"]["b2"])
+        domain, radius = self._get_evaluation_domain(
+            mapping["A"]["b1"],
+            mapping["A"]["b2"],
+            mapping["RG"]["b1"],
+            mapping["RG"]["b2"],
+            mapping["BY"]["b1"],
+            mapping["BY"]["b2"],
+        )
 
-        weights = np.array([self._generate_weights(mapping[channel], domain)
-                            for channel in ("A", "RG", "BY")])
+        weights = np.array(
+            [
+                self._generate_weights(mapping[channel], domain)
+                for channel in ("A", "RG", "BY")
+            ]
+        )
         weights = K.constant(np.moveaxis(weights, 0, -1), dtype="float32")
 
         return weights, radius
 
-    def _get_evaluation_domain(self,
-                               b1_a: float,
-                               b2_a: float,
-                               b1_rg: float,
-                               b2_rg: float,
-                               b1_by: float,
-                               b2_by: float) -> Tuple[np.ndarray, int]:
-        """ TODO docstring """
+    def _get_evaluation_domain(
+        self,
+        b1_a: float,
+        b2_a: float,
+        b1_rg: float,
+        b2_rg: float,
+        b1_by: float,
+        b2_by: float,
+    ) -> tuple[np.ndarray, int]:
+        """TODO docstring"""
         max_scale_parameter = max([b1_a, b2_a, b1_rg, b2_rg, b1_by, b2_by])
         delta_x = 1.0 / self._pixels_per_degree
-        radius = int(np.ceil(3 * np.sqrt(max_scale_parameter / (2 * np.pi**2))
-                             * self._pixels_per_degree))
+        radius = int(
+            np.ceil(
+                3
+                * np.sqrt(max_scale_parameter / (2 * np.pi**2))
+                * self._pixels_per_degree
+            )
+        )
         ax_x, ax_y = np.meshgrid(range(-radius, radius + 1), range(-radius, radius + 1))
         domain = (ax_x * delta_x) ** 2 + (ax_y * delta_x) ** 2
         return domain, radius
 
     @classmethod
-    def _generate_weights(cls, channel: Dict[str, float], domain: np.ndarray) -> tf.Tensor:
-        """ TODO docstring """
+    def _generate_weights(
+        cls, channel: dict[str, float], domain: np.ndarray
+    ) -> tf.Tensor:
+        """TODO docstring"""
         a_1, b_1, a_2, b_2 = channel["a1"], channel["b1"], channel["a2"], channel["b2"]
-        grad = (a_1 * np.sqrt(np.pi / b_1) * np.exp(-np.pi ** 2 * domain / b_1) +
-                a_2 * np.sqrt(np.pi / b_2) * np.exp(-np.pi ** 2 * domain / b_2))
+        grad = a_1 * np.sqrt(np.pi / b_1) * np.exp(
+            -np.pi**2 * domain / b_1
+        ) + a_2 * np.sqrt(np.pi / b_2) * np.exp(-np.pi**2 * domain / b_2)
         grad = grad / np.sum(grad)
         grad = np.reshape(grad, (*grad.shape, 1))
         return grad
 
     def __call__(self, image: tf.Tensor) -> tf.Tensor:
-        """ Call the spacial filtering.
+        """Call the spacial filtering.
 
         Parameters
         ----------
@@ -594,16 +658,15 @@ class _SpatialFilters():  # pylint:disable=too-few-public-methods
             sensitivity functions
         """
         padded_image = replicate_pad(image, self._radius)
-        image_tilde_opponent = K.conv2d(padded_image,
-                                        self._spatial_filters,
-                                        strides=1,
-                                        padding="valid")
-        rgb = K.clip(self._ycxcz2rgb(image_tilde_opponent), 0., 1.)
+        image_tilde_opponent = K.conv2d(
+            padded_image, self._spatial_filters, strides=1, padding="valid"
+        )
+        rgb = K.clip(self._ycxcz2rgb(image_tilde_opponent), 0.0, 1.0)
         return rgb
 
 
-class _FeatureDetection():  # pylint:disable=too-few-public-methods
-    """ Detect features (i.e. edges amd points) in an achromatic YCxCz image.
+class _FeatureDetection:  # pylint:disable=too-few-public-methods
+    """Detect features (i.e. edges amd points) in an achromatic YCxCz image.
 
     For use with LDRFlipLoss.
 
@@ -612,17 +675,21 @@ class _FeatureDetection():  # pylint:disable=too-few-public-methods
     pixels_per_degree: float
         The number of pixels per degree of visual angle of the observer
     """
+
     def __init__(self, pixels_per_degree: float) -> None:
         width = 0.082
         self._std = 0.5 * width * pixels_per_degree
         self._radius = int(np.ceil(3 * self._std))
-        self._grid = np.meshgrid(range(-self._radius, self._radius + 1),
-                                 range(-self._radius, self._radius + 1))
-        self._gradient = np.exp(-(self._grid[0] ** 2 + self._grid[1] ** 2)
-                                / (2 * (self._std ** 2)))
+        self._grid = np.meshgrid(
+            range(-self._radius, self._radius + 1),
+            range(-self._radius, self._radius + 1),
+        )
+        self._gradient = np.exp(
+            -(self._grid[0] ** 2 + self._grid[1] ** 2) / (2 * (self._std**2))
+        )
 
     def __call__(self, image: tf.Tensor, feature_type: str) -> tf.Tensor:
-        """ Run the feature detection
+        """Run the feature detection
 
         Parameters
         ----------
@@ -638,33 +705,35 @@ class _FeatureDetection():  # pylint:disable=too-few-public-methods
         """
         feature_type = feature_type.lower()
 
-        if feature_type == 'edge':
+        if feature_type == "edge":
             grad_x = np.multiply(-self._grid[0], self._gradient)
         else:
-            grad_x = np.multiply(self._grid[0] ** 2 / (self._std ** 2) - 1, self._gradient)
+            grad_x = np.multiply(
+                self._grid[0] ** 2 / (self._std**2) - 1, self._gradient
+            )
 
         negative_weights_sum = -np.sum(grad_x[grad_x < 0])
         positive_weights_sum = np.sum(grad_x[grad_x > 0])
 
         grad_x = K.constant(grad_x)
-        grad_x = K.switch(grad_x < 0, grad_x / negative_weights_sum, grad_x / positive_weights_sum)
+        grad_x = K.switch(
+            grad_x < 0, grad_x / negative_weights_sum, grad_x / positive_weights_sum
+        )
         kernel = K.expand_dims(K.expand_dims(grad_x, axis=-1), axis=-1)
 
-        features_x = K.conv2d(replicate_pad(image, self._radius),
-                              kernel,
-                              strides=1,
-                              padding="valid")
+        features_x = K.conv2d(
+            replicate_pad(image, self._radius), kernel, strides=1, padding="valid"
+        )
         kernel = K.permute_dimensions(kernel, (1, 0, 2, 3))
-        features_y = K.conv2d(replicate_pad(image, self._radius),
-                              kernel,
-                              strides=1,
-                              padding="valid")
+        features_y = K.conv2d(
+            replicate_pad(image, self._radius), kernel, strides=1, padding="valid"
+        )
         features = K.concatenate([features_x, features_y], axis=-1)
         return features
 
 
-class MSSIMLoss():  # pylint:disable=too-few-public-methods
-    """ Multiscale Structural Similarity Loss Function
+class MSSIMLoss:  # pylint:disable=too-few-public-methods
+    """Multiscale Structural Similarity Loss Function
 
     Parameters
     ----------
@@ -688,14 +757,16 @@ class MSSIMLoss():  # pylint:disable=too-few-public-methods
     ------
     You should add a regularization term like a l2 loss in addition to this one.
     """
-    def __init__(self,
-                 k_1: float = 0.01,
-                 k_2: float = 0.03,
-                 filter_size: int = 11,
-                 filter_sigma: float = 1.5,
-                 max_value: float = 1.0,
-                 power_factors: Tuple[float, ...] = (0.0448, 0.2856, 0.3001, 0.2363, 0.1333)
-                 ) -> None:
+
+    def __init__(
+        self,
+        k_1: float = 0.01,
+        k_2: float = 0.03,
+        filter_size: int = 11,
+        filter_sigma: float = 1.5,
+        max_value: float = 1.0,
+        power_factors: tuple[float, ...] = (0.0448, 0.2856, 0.3001, 0.2363, 0.1333),
+    ) -> None:
         self.filter_size = filter_size
         self.filter_sigma = filter_sigma
         self.k_1 = k_1
@@ -704,7 +775,7 @@ class MSSIMLoss():  # pylint:disable=too-few-public-methods
         self.power_factors = power_factors
 
     def __call__(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """ Call the MS-SSIM Loss Function.
+        """Call the MS-SSIM Loss Function.
 
         Parameters
         ----------
@@ -723,19 +794,21 @@ class MSSIMLoss():  # pylint:disable=too-few-public-methods
         smallest_scale = self._get_smallest_size(im_size, len(self.power_factors) - 1)
         filter_size = min(self.filter_size, smallest_scale)
 
-        ms_ssim = tf.image.ssim_multiscale(y_true,
-                                           y_pred,
-                                           self.max_value,
-                                           power_factors=self.power_factors,
-                                           filter_size=filter_size,
-                                           filter_sigma=self.filter_sigma,
-                                           k1=self.k_1,
-                                           k2=self.k_2)
-        ms_ssim_loss = 1. - ms_ssim
+        ms_ssim = tf.image.ssim_multiscale(
+            y_true,
+            y_pred,
+            self.max_value,
+            power_factors=self.power_factors,
+            filter_size=filter_size,
+            filter_sigma=self.filter_sigma,
+            k1=self.k_1,
+            k2=self.k_2,
+        )
+        ms_ssim_loss = 1.0 - ms_ssim
         return K.mean(ms_ssim_loss)
 
     def _get_smallest_size(self, size: int, idx: int) -> int:
-        """ Recursive function to obtain the smallest size that the image will be scaled to.
+        """Recursive function to obtain the smallest size that the image will be scaled to.
 
         Parameters
         ----------

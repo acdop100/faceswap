@@ -1,5 +1,6 @@
 #!/usr/bin python3
 """ The Menu Bars for faceswap GUI """
+from __future__ import annotations
 
 import gettext
 import locale
@@ -7,19 +8,20 @@ import logging
 import os
 import sys
 import tkinter as tk
-from tkinter import ttk
 import webbrowser
+from subprocess import PIPE
+from subprocess import Popen
+from subprocess import STDOUT
+from tkinter import ttk
 
-from subprocess import Popen, PIPE, STDOUT
-
+import update_deps
+from .custom_widgets import Tooltip
+from .popup_configure import open_popup
+from .utils import get_config
+from .utils import get_images
 from lib.multithreading import MultiThread
 from lib.serializer import get_serializer
 from lib.utils import FaceswapError
-import update_deps
-
-from .popup_configure import open_popup
-from .custom_widgets import Tooltip
-from .utils import get_config, get_images
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -29,14 +31,17 @@ _ = _LANG.gettext
 
 _WORKING_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 
-_RESOURCES = [(_("faceswap.dev - Guides and Forum"), "https://www.faceswap.dev"),
-              (_("Patreon - Support this project"), "https://www.patreon.com/faceswap"),
-              (_("Discord - The FaceSwap Discord server"), "https://discord.gg/VasFUAy"),
-              (_("Github - Our Source Code"), "https://github.com/deepfakes/faceswap")]
+_RESOURCES = [
+    (_("faceswap.dev - Guides and Forum"), "https://www.faceswap.dev"),
+    (_("Patreon - Support this project"), "https://www.patreon.com/faceswap"),
+    (_("Discord - The FaceSwap Discord server"), "https://discord.gg/VasFUAy"),
+    (_("Github - Our Source Code"), "https://github.com/deepfakes/faceswap"),
+]
 
 
 class MainMenuBar(tk.Menu):  # pylint:disable=too-many-ancestors
-    """ GUI Main Menu Bar """
+    """GUI Main Menu Bar"""
+
     def __init__(self, master=None):
         logger.debug("Initializing %s", self.__class__.__name__)
         super().__init__(master)
@@ -53,7 +58,8 @@ class MainMenuBar(tk.Menu):  # pylint:disable=too-many-ancestors
 
 
 class SettingsMenu(tk.Menu):  # pylint:disable=too-many-ancestors
-    """ Settings menu items and functions """
+    """Settings menu items and functions"""
+
     def __init__(self, parent):
         logger.debug("Initializing %s", self.__class__.__name__)
         super().__init__(parent, tearoff=0)
@@ -62,78 +68,97 @@ class SettingsMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def build(self):
-        """ Add the settings menu to the menu bar """
+        """Add the settings menu to the menu bar"""
         # pylint: disable=cell-var-from-loop
         logger.debug("Building settings menu")
-        self.add_command(label="Configure Settings...",
-                         underline=0,
-                         command=open_popup)
+        self.add_command(label="Configure Settings...", underline=0, command=open_popup)
         logger.debug("Built settings menu")
 
 
 class FileMenu(tk.Menu):  # pylint:disable=too-many-ancestors
-    """ File menu items and functions """
+    """File menu items and functions"""
+
     def __init__(self, parent):
         logger.debug("Initializing %s", self.__class__.__name__)
         super().__init__(parent, tearoff=0)
         self.root = parent.root
         self._config = get_config()
-        self.recent_menu = tk.Menu(self, tearoff=0, postcommand=self.refresh_recent_menu)
+        self.recent_menu = tk.Menu(
+            self, tearoff=0, postcommand=self.refresh_recent_menu
+        )
         self.build()
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def build(self):
-        """ Add the file menu to the menu bar """
+        """Add the file menu to the menu bar"""
         logger.debug("Building File menu")
-        self.add_command(label="New Project...",
-                         underline=0,
-                         accelerator="Ctrl+N",
-                         command=self._config.project.new)
+        self.add_command(
+            label="New Project...",
+            underline=0,
+            accelerator="Ctrl+N",
+            command=self._config.project.new,
+        )
         self.root.bind_all("<Control-n>", self._config.project.new)
-        self.add_command(label="Open Project...",
-                         underline=0,
-                         accelerator="Ctrl+O",
-                         command=self._config.project.load)
+        self.add_command(
+            label="Open Project...",
+            underline=0,
+            accelerator="Ctrl+O",
+            command=self._config.project.load,
+        )
         self.root.bind_all("<Control-o>", self._config.project.load)
-        self.add_command(label="Save Project",
-                         underline=0,
-                         accelerator="Ctrl+S",
-                         command=lambda: self._config.project.save(save_as=False))
-        self.root.bind_all("<Control-s>", lambda e: self._config.project.save(e, save_as=False))
-        self.add_command(label="Save Project as...",
-                         underline=13,
-                         accelerator="Ctrl+Alt+S",
-                         command=lambda: self._config.project.save(save_as=True))
-        self.root.bind_all("<Control-Alt-s>", lambda e: self._config.project.save(e, save_as=True))
-        self.add_command(label="Reload Project from Disk",
-                         underline=0,
-                         accelerator="F5",
-                         command=self._config.project.reload)
+        self.add_command(
+            label="Save Project",
+            underline=0,
+            accelerator="Ctrl+S",
+            command=lambda: self._config.project.save(save_as=False),
+        )
+        self.root.bind_all(
+            "<Control-s>", lambda e: self._config.project.save(e, save_as=False)
+        )
+        self.add_command(
+            label="Save Project as...",
+            underline=13,
+            accelerator="Ctrl+Alt+S",
+            command=lambda: self._config.project.save(save_as=True),
+        )
+        self.root.bind_all(
+            "<Control-Alt-s>", lambda e: self._config.project.save(e, save_as=True)
+        )
+        self.add_command(
+            label="Reload Project from Disk",
+            underline=0,
+            accelerator="F5",
+            command=self._config.project.reload,
+        )
         self.root.bind_all("<F5>", self._config.project.reload)
-        self.add_command(label="Close Project",
-                         underline=0,
-                         accelerator="Ctrl+W",
-                         command=self._config.project.close)
+        self.add_command(
+            label="Close Project",
+            underline=0,
+            accelerator="Ctrl+W",
+            command=self._config.project.close,
+        )
         self.root.bind_all("<Control-w>", self._config.project.close)
         self.add_separator()
-        self.add_command(label="Open Task...",
-                         underline=5,
-                         accelerator="Ctrl+Alt+T",
-                         command=lambda: self._config.tasks.load(current_tab=False))
-        self.root.bind_all("<Control-Alt-t>",
-                           lambda e: self._config.tasks.load(e, current_tab=False))
+        self.add_command(
+            label="Open Task...",
+            underline=5,
+            accelerator="Ctrl+Alt+T",
+            command=lambda: self._config.tasks.load(current_tab=False),
+        )
+        self.root.bind_all(
+            "<Control-Alt-t>", lambda e: self._config.tasks.load(e, current_tab=False)
+        )
         self.add_separator()
         self.add_cascade(label="Open recent", underline=6, menu=self.recent_menu)
         self.add_separator()
-        self.add_command(label="Quit",
-                         underline=0,
-                         accelerator="Alt+F4",
-                         command=self.root.close_app)
+        self.add_command(
+            label="Quit", underline=0, accelerator="Alt+F4", command=self.root.close_app
+        )
         self.root.bind_all("<Alt-F4>", self.root.close_app)
         logger.debug("Built File menu")
 
     def build_recent_menu(self):
-        """ Load recent files into menu bar """
+        """Load recent files into menu bar"""
         logger.debug("Building Recent Files menu")
         serializer = get_serializer("json")
         menu_file = os.path.join(self._config.pathcache, ".recent.json")
@@ -144,8 +169,10 @@ class FileMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         except FaceswapError as err:
             if "Error unserializing data for type" in str(err):
                 # Some reports of corruption breaking menus
-                logger.warning("There was an error opening the recent files list so it has been "
-                               "reset.")
+                logger.warning(
+                    "There was an error opening the recent files list so it has been "
+                    "reset."
+                )
                 self.clear_recent_files(serializer, menu_file)
                 recent_files = []
 
@@ -154,7 +181,9 @@ class FileMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         for recent_item in recent_files:
             filename, command = recent_item
             if not os.path.isfile(filename):
-                logger.debug("File does not exist. Flagging for removal: '%s'", filename)
+                logger.debug(
+                    "File does not exist. Flagging for removal: '%s'", filename
+                )
                 removed_files.append(recent_item)
                 continue
             # Legacy project files didn't have a command stored
@@ -170,7 +199,8 @@ class FileMenu(tk.Menu):  # pylint:disable=too-many-ancestors
                 kwargs = dict(filename=filename, current_tab=False)
             self.recent_menu.add_command(
                 label=f"{filename} ({lbl.title()})",
-                command=lambda kw=kwargs, fn=load_func: fn(**kw))
+                command=lambda kw=kwargs, fn=load_func: fn(**kw),
+            )
         if removed_files:
             for recent_item in removed_files:
                 logger.debug("Removing from recent files: `%s`", recent_item[0])
@@ -180,24 +210,28 @@ class FileMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         self.recent_menu.add_command(
             label="Clear recent files",
             underline=0,
-            command=lambda srl=serializer, mnu=menu_file: self.clear_recent_files(srl, mnu))
+            command=lambda srl=serializer, mnu=menu_file: self.clear_recent_files(
+                srl, mnu
+            ),
+        )
 
         logger.debug("Built Recent Files menu")
 
     @staticmethod
     def clear_recent_files(serializer, menu_file):
-        """ Creates or clears recent file list """
+        """Creates or clears recent file list"""
         logger.debug("clearing recent files list: '%s'", menu_file)
         serializer.save(menu_file, [])
 
     def refresh_recent_menu(self):
-        """ Refresh recent menu on save/load of files """
+        """Refresh recent menu on save/load of files"""
         self.recent_menu.delete(0, "end")
         self.build_recent_menu()
 
 
 class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
-    """ Help menu items and functions """
+    """Help menu items and functions"""
+
     def __init__(self, parent):
         logger.debug("Initializing %s", self.__class__.__name__)
         super().__init__(parent, tearoff=0)
@@ -208,28 +242,36 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def build(self):
-        """ Build the help menu """
+        """Build the help menu"""
         logger.debug("Building Help menu")
 
-        self.add_command(label="Check for updates...",
-                         underline=0,
-                         command=lambda action="check": self.in_thread(action))
-        self.add_command(label="Update Faceswap...",
-                         underline=0,
-                         command=lambda action="update": self.in_thread(action))
+        self.add_command(
+            label="Check for updates...",
+            underline=0,
+            command=lambda action="check": self.in_thread(action),
+        )
+        self.add_command(
+            label="Update Faceswap...",
+            underline=0,
+            command=lambda action="update": self.in_thread(action),
+        )
         if self._build_branches_menu():
-            self.add_cascade(label="Switch Branch", underline=7, menu=self._branches_menu)
+            self.add_cascade(
+                label="Switch Branch", underline=7, menu=self._branches_menu
+            )
         self.add_separator()
         self._build_recources_menu()
         self.add_cascade(label="Resources", underline=0, menu=self.recources_menu)
         self.add_separator()
-        self.add_command(label="Output System Information",
-                         underline=0,
-                         command=lambda action="output_sysinfo": self.in_thread(action))
+        self.add_command(
+            label="Output System Information",
+            underline=0,
+            command=lambda action="output_sysinfo": self.in_thread(action),
+        )
         logger.debug("Built help menu")
 
     def _build_branches_menu(self):
-        """ Build branch selection menu.
+        """Build branch selection menu.
 
         Queries git for available branches and builds a menu based on output.
 
@@ -248,13 +290,13 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
 
         for branch in branches:
             self._branches_menu.add_command(
-                label=branch,
-                command=lambda b=branch: self._switch_branch(b))
+                label=branch, command=lambda b=branch: self._switch_branch(b)
+            )
         return True
 
     @staticmethod
     def _get_branches():
-        """ Get the available github branches
+        """Get the available github branches
 
         Returns
         -------
@@ -263,18 +305,23 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
             error then `None` is returned
         """
         gitcmd = "git branch -a"
-        with Popen(gitcmd, shell=True, stdout=PIPE, stderr=STDOUT, cwd=_WORKING_DIR) as cmd:
+        with Popen(
+            gitcmd, shell=True, stdout=PIPE, stderr=STDOUT, cwd=_WORKING_DIR
+        ) as cmd:
             stdout, _ = cmd.communicate()
             retcode = cmd.poll()
         if retcode != 0:
-            logger.debug("Unable to list git branches. return code: %s, message: %s",
-                         retcode, stdout.decode().strip().replace("\n", " - "))
+            logger.debug(
+                "Unable to list git branches. return code: %s, message: %s",
+                retcode,
+                stdout.decode().strip().replace("\n", " - "),
+            )
             return None
         return stdout.decode(locale.getpreferredencoding())
 
     @staticmethod
     def _filter_branches(stdout):
-        """ Filter the branches, remove duplicates and the current branch and return a sorted
+        """Filter the branches, remove duplicates and the current branch and return a sorted
         list.
 
         Parameters
@@ -290,7 +337,7 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         current = None
         branches = set()
         for line in stdout.splitlines():
-            branch = line[line.rfind("/") + 1:] if "/" in line else line.strip()
+            branch = line[line.rfind("/") + 1 :] if "/" in line else line.strip()
             if branch.startswith("*"):
                 branch = branch.replace("*", "").strip()
                 current = branch
@@ -307,7 +354,7 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
 
     @staticmethod
     def _switch_branch(branch):
-        """ Change the currently checked out branch, and return a notification.
+        """Change the currently checked out branch, and return a notification.
 
         Parameters
         ----------
@@ -316,29 +363,38 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         """
         logger.info("Switching branch to '%s'...", branch)
         gitcmd = f"git checkout {branch}"
-        with Popen(gitcmd, shell=True, stdout=PIPE, stderr=STDOUT, cwd=_WORKING_DIR) as cmd:
+        with Popen(
+            gitcmd, shell=True, stdout=PIPE, stderr=STDOUT, cwd=_WORKING_DIR
+        ) as cmd:
             stdout, _ = cmd.communicate()
             retcode = cmd.poll()
         if retcode != 0:
-            logger.error("Unable to switch branch. return code: %s, message: %s",
-                         retcode, stdout.decode().strip().replace("\n", " - "))
+            logger.error(
+                "Unable to switch branch. return code: %s, message: %s",
+                retcode,
+                stdout.decode().strip().replace("\n", " - "),
+            )
             return
-        logger.info("Succesfully switched to '%s'. You may want to check for updates to make sure "
-                    "that you have the latest code.", branch)
+        logger.info(
+            "Succesfully switched to '%s'. You may want to check for updates to make sure "
+            "that you have the latest code.",
+            branch,
+        )
         logger.info("Please restart Faceswap to complete the switch.")
 
     def _build_recources_menu(self):
-        """ Build resources menu """
+        """Build resources menu"""
         # pylint: disable=cell-var-from-loop
         logger.debug("Building Resources Files menu")
         for resource in _RESOURCES:
             self.recources_menu.add_command(
                 label=resource[0],
-                command=lambda link=resource[1]: webbrowser.open_new(link))
+                command=lambda link=resource[1]: webbrowser.open_new(link),
+            )
         logger.debug("Built resources menu")
 
     def in_thread(self, action):
-        """ Perform selected action inside a thread """
+        """Perform selected action inside a thread"""
         logger.debug("Performing help action: %s", action)
         thread = MultiThread(getattr(self, action), thread_count=1)
         thread.start()
@@ -346,16 +402,17 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
 
     @staticmethod
     def clear_console():
-        """ Clear the console window """
+        """Clear the console window"""
         get_config().tk_vars.console_clear.set(True)
 
     def output_sysinfo(self):
-        """ Output system information to console """
+        """Output system information to console"""
         logger.debug("Obtaining system information")
         self.root.config(cursor="watch")
         self.clear_console()
         try:
             from lib.sysinfo import sysinfo  # pylint:disable=import-outside-toplevel
+
             info = sysinfo
         except Exception as err:  # pylint:disable=broad-except
             info = f"Error obtaining system info: {str(err)}"
@@ -365,7 +422,7 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         self.root.config(cursor="")
 
     def check(self):
-        """ Check for updates and clone repository """
+        """Check for updates and clone repository"""
         logger.debug("Checking for updates...")
         self.root.config(cursor="watch")
         encoding = locale.getpreferredencoding()
@@ -374,7 +431,7 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
         self.root.config(cursor="")
 
     def update(self):
-        """ Check for updates and clone repository """
+        """Check for updates and clone repository"""
         logger.debug("Updating Faceswap...")
         self.root.config(cursor="watch")
         encoding = locale.getpreferredencoding()
@@ -389,18 +446,22 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
 
     @staticmethod
     def check_for_updates(encoding, check=False):
-        """ Check whether an update is required """
+        """Check whether an update is required"""
         # Do the check
         logger.info("Checking for updates...")
         update = False
         msg = ""
         gitcmd = "git remote update && git status -uno"
-        with Popen(gitcmd, shell=True, stdout=PIPE, stderr=STDOUT, cwd=_WORKING_DIR) as cmd:
+        with Popen(
+            gitcmd, shell=True, stdout=PIPE, stderr=STDOUT, cwd=_WORKING_DIR
+        ) as cmd:
             stdout, _ = cmd.communicate()
             retcode = cmd.poll()
         if retcode != 0:
-            msg = ("Git is not installed or you are not running a cloned repo. "
-                   "Unable to check for updates")
+            msg = (
+                "Git is not installed or you are not running a cloned repo. "
+                "Unable to check for updates"
+            )
         else:
             chk = stdout.decode(encoding).splitlines()
             for line in chk:
@@ -424,15 +485,12 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
 
     @staticmethod
     def do_update(encoding):
-        """ Update Faceswap """
+        """Update Faceswap"""
         logger.info("A new version is available. Updating...")
         gitcmd = "git pull"
-        with Popen(gitcmd,
-                   shell=True,
-                   stdout=PIPE,
-                   stderr=STDOUT,
-                   bufsize=1,
-                   cwd=_WORKING_DIR) as cmd:
+        with Popen(
+            gitcmd, shell=True, stdout=PIPE, stderr=STDOUT, bufsize=1, cwd=_WORKING_DIR
+        ) as cmd:
             while True:
                 output = cmd.stdout.readline().decode(encoding)
                 if output == "" and cmd.poll() is not None:
@@ -451,7 +509,8 @@ class HelpMenu(tk.Menu):  # pylint:disable=too-many-ancestors
 
 
 class TaskBar(ttk.Frame):  # pylint: disable=too-many-ancestors
-    """ Task bar buttons """
+    """Task bar buttons"""
+
     def __init__(self, parent):
         super().__init__(parent)
         self._config = get_config()
@@ -475,9 +534,11 @@ class TaskBar(ttk.Frame):  # pylint: disable=too-many-ancestors
 
             loader, kwargs = self._loader_and_kwargs(btntype)
             cmd = getattr(self._config.project, loader)
-            btn = ttk.Button(frame,
-                             image=get_images().icons[btntype],
-                             command=lambda fn=cmd, kw=kwargs: fn(**kw))
+            btn = ttk.Button(
+                frame,
+                image=get_images().icons[btntype],
+                command=lambda fn=cmd, kw=kwargs: fn(**kw),
+            )
             btn.pack(side=tk.LEFT, anchor=tk.W)
             hlp = self.set_help(btntype)
             Tooltip(btn, text=hlp, wrap_length=200)
@@ -497,7 +558,8 @@ class TaskBar(ttk.Frame):  # pylint: disable=too-many-ancestors
             btn = ttk.Button(
                 frame,
                 image=get_images().icons[btntype],
-                command=lambda fn=cmd, kw=kwargs: fn(**kw))
+                command=lambda fn=cmd, kw=kwargs: fn(**kw),
+            )
             btn.pack(side=tk.LEFT, anchor=tk.W)
             hlp = self.set_help(btntype)
             Tooltip(btn, text=hlp, wrap_length=200)
@@ -527,14 +589,15 @@ class TaskBar(ttk.Frame):  # pylint: disable=too-many-ancestors
             btn = ttk.Button(
                 frame,
                 image=get_images().icons[btntype],
-                command=lambda n=name: open_popup(name=n))
+                command=lambda n=name: open_popup(name=n),
+            )
             btn.pack(side=tk.LEFT, anchor=tk.W)
             hlp = _("Configure {} settings...").format(name.title())
             Tooltip(btn, text=hlp, wrap_length=200)
 
     @staticmethod
     def set_help(btntype):
-        """ Set the helptext for option buttons """
+        """Set the helptext for option buttons"""
         logger.debug("Setting help")
         hlp = ""
         task = _("currently selected Task") if btntype[-1] == "2" else _("Project")

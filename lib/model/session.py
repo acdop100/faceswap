@@ -1,9 +1,14 @@
 #!/usr/bin python3
 """ Settings manager for Keras Backend """
+from __future__ import annotations
 
-from contextlib import nullcontext
 import logging
-from typing import Callable, ContextManager, List, Optional, Union
+from contextlib import nullcontext
+from typing import Callable
+from typing import ContextManager
+from typing import List
+from typing import Optional
+from typing import Union
 
 import numpy as np
 import tensorflow as tf
@@ -15,14 +20,19 @@ if get_backend() == "amd":
     from keras.models import load_model as k_load_model, Model
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.layers import Activation  # noqa pylint:disable=no-name-in-module,import-error
-    from tensorflow.keras.models import load_model as k_load_model, Model  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.layers import (
+        Activation,
+    )  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.models import (
+        load_model as k_load_model,
+        Model,
+    )  # noqa pylint:disable=no-name-in-module,import-error
 
 logger = logging.getLogger(__name__)  # pylint:disable=invalid-name
 
 
-class KSession():
-    """ Handles the settings of backend sessions for inference models.
+class KSession:
+    """Handles the settings of backend sessions for inference models.
 
     This class acts as a wrapper for various :class:`keras.Model()` functions, ensuring that
     actions performed on a model are handled consistently and can be performed in parallel in
@@ -54,31 +64,46 @@ class KSession():
     cpu_mode: bool, optional
         ``True`` run the model on CPU. Default: ``False``
     """
-    def __init__(self,
-                 name: str,
-                 model_path: str,
-                 model_kwargs: Optional[dict] = None,
-                 allow_growth: bool = False,
-                 exclude_gpus: Optional[List[int]] = None,
-                 cpu_mode: bool = False) -> None:
-        logger.trace("Initializing: %s (name: %s, model_path: %s, "  # type:ignore
-                     "model_kwargs: %s,  allow_growth: %s, exclude_gpus: %s, cpu_mode: %s)",
-                     self.__class__.__name__, name, model_path, model_kwargs, allow_growth,
-                     exclude_gpus, cpu_mode)
+
+    def __init__(
+        self,
+        name: str,
+        model_path: str,
+        model_kwargs: dict | None = None,
+        allow_growth: bool = False,
+        exclude_gpus: list[int] | None = None,
+        cpu_mode: bool = False,
+    ) -> None:
+        logger.trace(
+            "Initializing: %s (name: %s, model_path: %s, "  # type:ignore
+            "model_kwargs: %s,  allow_growth: %s, exclude_gpus: %s, cpu_mode: %s)",
+            self.__class__.__name__,
+            name,
+            model_path,
+            model_kwargs,
+            allow_growth,
+            exclude_gpus,
+            cpu_mode,
+        )
         self._name = name
         self._backend = get_backend()
-        self._context = self._set_session(allow_growth,
-                                          [] if exclude_gpus is None else exclude_gpus,
-                                          cpu_mode)
+        self._context = self._set_session(
+            allow_growth, [] if exclude_gpus is None else exclude_gpus, cpu_mode
+        )
         self._model_path = model_path
         self._model_kwargs = {} if not model_kwargs else model_kwargs
-        self._model: Optional[Model] = None
-        logger.trace("Initialized: %s", self.__class__.__name__,)  # type:ignore
+        self._model: Model | None = None
+        logger.trace(
+            "Initialized: %s",
+            self.__class__.__name__,
+        )  # type:ignore
 
-    def predict(self,
-                feed: Union[List[np.ndarray], np.ndarray],
-                batch_size: Optional[int] = None) -> Union[List[np.ndarray], np.ndarray]:
-        """ Get predictions from the model.
+    def predict(
+        self,
+        feed: list[np.ndarray] | np.ndarray,
+        batch_size: int | None = None,
+    ) -> list[np.ndarray] | np.ndarray:
+        """Get predictions from the model.
 
         This method is a wrapper for :func:`keras.predict()` function. For Tensorflow backends
         this is a straight call to the predict function. For PlaidML backends, this attempts
@@ -105,10 +130,9 @@ class KSession():
             return self._model.predict(feed, verbose=0, batch_size=batch_size)
 
     def _amd_predict_with_optimized_batchsizes(
-            self,
-            feed: Union[List[np.ndarray], np.ndarray],
-            batch_size: int) -> Union[List[np.ndarray], np.ndarray]:
-        """ Minimizes the amount of kernels to be compiled when using the ``amd`` backend with
+        self, feed: list[np.ndarray] | np.ndarray, batch_size: int
+    ) -> list[np.ndarray] | np.ndarray:
+        """Minimizes the amount of kernels to be compiled when using the ``amd`` backend with
         varying batch sizes while trying to keep the batchsize as high as possible.
 
         Parameters
@@ -130,7 +154,7 @@ class KSession():
                 batch_size = 1
             batch_items = ((items - done_items) // batch_size) * batch_size
             if batch_items:
-                pred_data = [x[done_items:done_items + batch_items] for x in feed]
+                pred_data = [x[done_items : done_items + batch_items] for x in feed]
                 pred = self._model.predict(pred_data, batch_size=batch_size)
                 done_items += batch_items
                 results.append(pred)
@@ -139,11 +163,10 @@ class KSession():
             return np.concatenate(results)
         return [np.concatenate(x) for x in zip(*results)]
 
-    def _set_session(self,
-                     allow_growth: bool,
-                     exclude_gpus: list,
-                     cpu_mode: bool) -> ContextManager:
-        """ Sets the backend session options.
+    def _set_session(
+        self, allow_growth: bool, exclude_gpus: list, cpu_mode: bool
+    ) -> ContextManager:
+        """Sets the backend session options.
 
         For AMD backend this does nothing.
 
@@ -172,7 +195,7 @@ class KSession():
             tf.config.set_visible_devices([], "GPU")
             return retval
 
-        gpus = tf.config.list_physical_devices('GPU')
+        gpus = tf.config.list_physical_devices("GPU")
         if exclude_gpus:
             gpus = [gpu for idx, gpu in enumerate(gpus) if idx not in exclude_gpus]
             logger.debug("Filtering devices to: %s", gpus)
@@ -188,7 +211,7 @@ class KSession():
         return retval
 
     def load_model(self) -> None:
-        """ Loads a model.
+        """Loads a model.
 
         This method is a wrapper for :func:`keras.models.load_model()`. Loads a model and its
         weights from :attr:`model_path` defined during initialization of this class. Any additional
@@ -200,12 +223,14 @@ class KSession():
         """
         logger.verbose("Initializing plugin model: %s", self._name)  # type:ignore
         with self._context:
-            self._model = k_load_model(self._model_path, compile=False, **self._model_kwargs)
+            self._model = k_load_model(
+                self._model_path, compile=False, **self._model_kwargs
+            )
             if self._backend != "amd":
                 self._model.make_predict_function()
 
     def define_model(self, function: Callable) -> None:
-        """ Defines a model from the given function.
+        """Defines a model from the given function.
 
         This method acts as a wrapper for :class:`keras.models.Model()`.
 
@@ -220,7 +245,7 @@ class KSession():
             self._model = Model(*function())
 
     def load_model_weights(self) -> None:
-        """ Load model weights for a defined model inside the correct session.
+        """Load model weights for a defined model inside the correct session.
 
         This method is a wrapper for :class:`keras.load_weights()`. Once a model has been defined
         in :func:`define_model()` this method can be called to load its weights from the
@@ -237,7 +262,7 @@ class KSession():
                 self._model.make_predict_function()
 
     def append_softmax_activation(self, layer_index: int = -1) -> None:
-        """ Append a softmax activation layer to a model
+        """Append a softmax activation layer to a model
 
         Occasionally a softmax activation layer needs to be added to a model's output.
         This is a convenience function to append this layer to the loaded model.
@@ -248,8 +273,12 @@ class KSession():
             The layer index of the model to select the output from to use as an input to the
             softmax activation layer. Default: `-1` (The final layer of the model)
         """
-        logger.debug("Appending Softmax Activation to model: (layer_index: %s)", layer_index)
+        logger.debug(
+            "Appending Softmax Activation to model: (layer_index: %s)", layer_index
+        )
         assert self._model is not None
         with self._context:
-            softmax = Activation("softmax", name="softmax")(self._model.layers[layer_index].output)
+            softmax = Activation("softmax", name="softmax")(
+                self._model.layers[layer_index].output
+            )
             self._model = Model(inputs=self._model.input, outputs=[softmax])

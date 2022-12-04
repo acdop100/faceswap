@@ -413,11 +413,38 @@ or run with `gui` to launch the GUI
 ```bash
 python faceswap.py gui
 ```
-
-
 Proceed to [../blob/master/USAGE.md](USAGE.md)
 
 ## Notes
 This guide is far from complete. Functionality may change over time, and new dependencies are added and removed as time goes on.
 
 If you are experiencing issues, please raise them in the [faceswap Forum](https://faceswap.dev/forum) instead of the main repo. Usage questions raised in the issues within this repo are liable to be closed without response.
+
+
+
+
+# Pre-Commit
+If you want to contribute to the project, install pre-commit to check your changes before making a PR.
+
+To install and run pre-commit:
+1. Make sure you're in the faceswap conda evn: `conda activate faceswap`
+2. Install pre-commit the the venv: `conda install -c conda-forge pre-commit`
+3. Install pre-commit to the project: `pre-commit install`
+4. Run pre-commit: `pre-commit run`
+
+You can test out new pre-commit hooks by editing `.pre-commit-config.yaml`. You can look at [pre-commit's site](https://pre-commit.com/hooks.html) for supported hooks. 
+Some of the more advanced hooks such as flake8 and pylint don't seem to work well with this project. 
+
+If you want to run pre-commit against the whole project and not just files you've changed (if you're testing new hooks for example), run `pre-commit run --all-files`. I recommend outputting it to a file since the output can be quite large and difficult to read in the terminal if there are lots of changes. 
+
+## VSCode Issue
+For some reason, VSCode does not work with conda environments and pre-commit. If you use VSCode's UI to handle git actions for commiting, you may run into issues with pre-commit installed.
+
+NOTE: This is NOT an issue if you git commit manually: `git commit -m "your message here"`
+
+To alleviate this, 
+1. Close VSCode if it's already running
+2. Start a terminal session and activate faceswap env: `conda activate faceswap`
+3. `cd` into your faceswap directory and start VSCode `code .`
+
+VSCode instances launched this way will fully respect your conda venv and allow pre-commit to work with VSCode's UI git commit actions. 

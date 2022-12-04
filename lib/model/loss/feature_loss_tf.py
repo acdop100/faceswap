@@ -1,28 +1,42 @@
 #!/usr/bin/env python3
 """ Custom Feature Map Loss Functions for faceswap.py """
-from dataclasses import dataclass, field
+from __future__ import annotations
+
 import logging
-
-from typing import Any, Callable, Dict, Optional, List, Tuple
-
-# Ignore linting errors from Tensorflow's thoroughly broken import system
-import tensorflow as tf
-from tensorflow.keras import applications as kapp  # pylint:disable=import-error
-from tensorflow.keras.layers import Dropout, Conv2D, Input, Layer, Resizing  # noqa,pylint:disable=no-name-in-module,import-error
-from tensorflow.keras.models import Model  # pylint:disable=no-name-in-module,import-error
-import tensorflow.keras.backend as K  # pylint:disable=no-name-in-module,import-error
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 import numpy as np
+import tensorflow as tf
+import tensorflow.keras.backend as K  # pylint:disable=no-name-in-module,import-error
+from tensorflow.keras import applications as kapp  # pylint:disable=import-error
+from tensorflow.keras.layers import Conv2D
+from tensorflow.keras.layers import Dropout
+from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import Resizing
+from tensorflow.keras.models import (
+    Model,
+)  # pylint:disable=no-name-in-module,import-error
 
-from lib.model.nets import AlexNet, SqueezeNet
+from lib.model.nets import AlexNet
+from lib.model.nets import SqueezeNet
 from lib.utils import GetModel
+
+# Ignore linting errors from Tensorflow's thoroughly broken import system
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class NetInfo:
-    """ Data class for holding information about Trunk and Linear Layer nets.
+    """Data class for holding information about Trunk and Linear Layer nets.
 
     Parameters
     ----------
@@ -37,16 +51,17 @@ class NetInfo:
     needs_init: bool, optional
         True if the net needs initializing otherwise False. Default: ``True``
     """
+
     model_id: int = 0
     model_name: str = ""
-    net: Optional[Callable] = None
-    init_kwargs: Dict[str, Any] = field(default_factory=dict)
+    net: Callable | None = None
+    init_kwargs: dict[str, Any] = field(default_factory=dict)
     needs_init: bool = True
-    outputs: List[Layer] = field(default_factory=list)
+    outputs: list[Layer] = field(default_factory=list)
 
 
-class _LPIPSTrunkNet():  # pylint:disable=too-few-public-methods
-    """ Trunk neural network loader for LPIPS Loss function.
+class _LPIPSTrunkNet:  # pylint:disable=too-few-public-methods
+    """Trunk neural network loader for LPIPS Loss function.
 
     Parameters
     ----------
@@ -57,9 +72,15 @@ class _LPIPSTrunkNet():  # pylint:disable=too-few-public-methods
     load_weights: bool
         ``True`` if pretrained trunk network weights should be loaded, otherwise ``False``
     """
+
     def __init__(self, net_name: str, eval_mode: bool, load_weights: bool) -> None:
-        logger.debug("Initializing: %s (net_name '%s', eval_mode: %s, load_weights: %s)",
-                     self.__class__.__name__, net_name, eval_mode, load_weights)
+        logger.debug(
+            "Initializing: %s (net_name '%s', eval_mode: %s, load_weights: %s)",
+            self.__class__.__name__,
+            net_name,
+            eval_mode,
+            load_weights,
+        )
         self._eval_mode = eval_mode
         self._load_weights = load_weights
         self._net_name = net_name
@@ -67,26 +88,33 @@ class _LPIPSTrunkNet():  # pylint:disable=too-few-public-methods
         logger.debug("Initialized: %s ", self.__class__.__name__)
 
     @property
-    def _nets(self) -> Dict[str, NetInfo]:
-        """ :class:`NetInfo`: The Information about the requested net."""
+    def _nets(self) -> dict[str, NetInfo]:
+        """:class:`NetInfo`: The Information about the requested net."""
         return dict(
-            alex=NetInfo(model_id=15,
-                         model_name="alexnet_imagenet_no_top_v1.h5",
-                         net=AlexNet,
-                         outputs=[f"features.{idx}" for idx in (0, 3, 6, 8, 10)]),
-            squeeze=NetInfo(model_id=16,
-                            model_name="squeezenet_imagenet_no_top_v1.h5",
-                            net=SqueezeNet,
-                            outputs=[f"features.{idx}" for idx in (0, 4, 7, 9, 10, 11, 12)]),
-            vgg16=NetInfo(model_id=17,
-                          model_name="vgg16_imagenet_no_top_v1.h5",
-                          net=kapp.vgg16.VGG16,
-                          init_kwargs=dict(include_top=False, weights=None),
-                          outputs=[f"block{i + 1}_conv{2 if i < 2 else 3}" for i in range(5)]))
+            alex=NetInfo(
+                model_id=15,
+                model_name="alexnet_imagenet_no_top_v1.h5",
+                net=AlexNet,
+                outputs=[f"features.{idx}" for idx in (0, 3, 6, 8, 10)],
+            ),
+            squeeze=NetInfo(
+                model_id=16,
+                model_name="squeezenet_imagenet_no_top_v1.h5",
+                net=SqueezeNet,
+                outputs=[f"features.{idx}" for idx in (0, 4, 7, 9, 10, 11, 12)],
+            ),
+            vgg16=NetInfo(
+                model_id=17,
+                model_name="vgg16_imagenet_no_top_v1.h5",
+                net=kapp.vgg16.VGG16,
+                init_kwargs=dict(include_top=False, weights=None),
+                outputs=[f"block{i + 1}_conv{2 if i < 2 else 3}" for i in range(5)],
+            ),
+        )
 
     @classmethod
     def _normalize_output(cls, inputs: tf.Tensor, epsilon: float = 1e-10) -> tf.Tensor:
-        """ Normalize the output tensors from the trunk network.
+        """Normalize the output tensors from the trunk network.
 
         Parameters
         ----------
@@ -99,7 +127,7 @@ class _LPIPSTrunkNet():  # pylint:disable=too-few-public-methods
         return inputs / (norm_factor + epsilon)
 
     def _process_weights(self, model: Model) -> Model:
-        """ Save and lock weights if requested.
+        """Save and lock weights if requested.
 
         Parameters
         ----------
@@ -122,7 +150,7 @@ class _LPIPSTrunkNet():  # pylint:disable=too-few-public-methods
         return model
 
     def __call__(self) -> Model:
-        """ Load the Trunk net, add normalization to feature outputs, load weights and set
+        """Load the Trunk net, add normalization to feature outputs, load weights and set
         trainable state.
 
         Returns
@@ -135,15 +163,17 @@ class _LPIPSTrunkNet():  # pylint:disable=too-few-public-methods
 
         model = self._net.net(**self._net.init_kwargs)
         model = model if self._net_name == "vgg16" else model()
-        out_layers = [self._normalize_output(model.get_layer(name).output)
-                      for name in self._net.outputs]
+        out_layers = [
+            self._normalize_output(model.get_layer(name).output)
+            for name in self._net.outputs
+        ]
         model = Model(inputs=model.input, outputs=out_layers)
         model = self._process_weights(model)
         return model
 
 
 class _LPIPSLinearNet(_LPIPSTrunkNet):  # pylint:disable=too-few-public-methods
-    """ The Linear Network to be applied to the difference between the true and predicted outputs
+    """The Linear Network to be applied to the difference between the true and predicted outputs
     of the trunk network.
 
     Parameters
@@ -159,16 +189,24 @@ class _LPIPSLinearNet(_LPIPSTrunkNet):  # pylint:disable=too-few-public-methods
     use_dropout: bool
         ``True`` if a dropout layer should be used in the Linear network otherwise ``False``
     """
-    def __init__(self,
-                 net_name: str,
-                 eval_mode: bool,
-                 load_weights: bool,
-                 trunk_net: Model,
-                 use_dropout: bool) -> None:
+
+    def __init__(
+        self,
+        net_name: str,
+        eval_mode: bool,
+        load_weights: bool,
+        trunk_net: Model,
+        use_dropout: bool,
+    ) -> None:
         logger.debug(
-            "Initializing: %s (trunk_net: %s, use_dropout: %s)", self.__class__.__name__,
-            trunk_net, use_dropout)
-        super().__init__(net_name=net_name, eval_mode=eval_mode, load_weights=load_weights)
+            "Initializing: %s (trunk_net: %s, use_dropout: %s)",
+            self.__class__.__name__,
+            trunk_net,
+            use_dropout,
+        )
+        super().__init__(
+            net_name=net_name, eval_mode=eval_mode, load_weights=load_weights
+        )
 
         self._trunk = trunk_net
         self._use_dropout = use_dropout
@@ -176,18 +214,19 @@ class _LPIPSLinearNet(_LPIPSTrunkNet):  # pylint:disable=too-few-public-methods
         logger.debug("Initialized: %s", self.__class__.__name__)
 
     @property
-    def _nets(self) -> Dict[str, NetInfo]:
-        """ :class:`NetInfo`: The Information about the requested net."""
+    def _nets(self) -> dict[str, NetInfo]:
+        """:class:`NetInfo`: The Information about the requested net."""
         return dict(
-            alex=NetInfo(model_id=18,
-                         model_name="alexnet_lpips_v1.h5",),
-            squeeze=NetInfo(model_id=19,
-                            model_name="squeezenet_lpips_v1.h5"),
-            vgg16=NetInfo(model_id=20,
-                          model_name="vgg16_lpips_v1.h5"))
+            alex=NetInfo(
+                model_id=18,
+                model_name="alexnet_lpips_v1.h5",
+            ),
+            squeeze=NetInfo(model_id=19, model_name="squeezenet_lpips_v1.h5"),
+            vgg16=NetInfo(model_id=20, model_name="vgg16_lpips_v1.h5"),
+        )
 
-    def _linear_block(self, net_output_layer: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
-        """ Build a linear block for a trunk network output.
+    def _linear_block(self, net_output_layer: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
+        """Build a linear block for a trunk network output.
 
         Parameters
         ----------
@@ -208,7 +247,7 @@ class _LPIPSLinearNet(_LPIPSTrunkNet):  # pylint:disable=too-few-public-methods
         return input_, var_x
 
     def __call__(self) -> Model:
-        """ Build the linear network for the given trunk network's outputs. Load in trained weights
+        """Build the linear network for the given trunk network's outputs. Load in trained weights
         and set the model's trainable parameters.
 
         Returns
@@ -229,8 +268,8 @@ class _LPIPSLinearNet(_LPIPSTrunkNet):  # pylint:disable=too-few-public-methods
         return model
 
 
-class LPIPSLoss():  # pylint:disable=too-few-public-methods
-    """ LPIPS Loss Function.
+class LPIPSLoss:  # pylint:disable=too-few-public-methods
+    """LPIPS Loss Function.
 
     A perceptual loss function that uses linear outputs from pretrained CNNs feature layers.
 
@@ -275,52 +314,73 @@ class LPIPSLoss():  # pylint:disable=too-few-public-methods
         ``True`` to return the loss value per feature output layer otherwise ``False``.
         Default: ``False``
     """
-    def __init__(self,
-                 trunk_network: str,
-                 trunk_pretrained: bool = True,
-                 trunk_eval_mode: bool = True,
-                 linear_pretrained: bool = True,
-                 linear_eval_mode: bool = True,
-                 linear_use_dropout: bool = True,
-                 lpips: bool = True,
-                 spatial: bool = False,
-                 normalize: bool = True,
-                 ret_per_layer: bool = False) -> None:
+
+    def __init__(
+        self,
+        trunk_network: str,
+        trunk_pretrained: bool = True,
+        trunk_eval_mode: bool = True,
+        linear_pretrained: bool = True,
+        linear_eval_mode: bool = True,
+        linear_use_dropout: bool = True,
+        lpips: bool = True,
+        spatial: bool = False,
+        normalize: bool = True,
+        ret_per_layer: bool = False,
+    ) -> None:
         logger.debug(
             "Initializing: %s (trunk_network '%s', trunk_pretrained: %s, trunk_eval_mode: %s, "
             "linear_pretrained: %s, linear_eval_mode: %s, linear_use_dropout: %s, lpips: %s, "
-            "spatial: %s, normalize: %s, ret_per_layer: %s)", self.__class__.__name__,
-            trunk_network, trunk_pretrained, trunk_eval_mode, linear_pretrained, linear_eval_mode,
-            linear_use_dropout, lpips, spatial, normalize, ret_per_layer)
+            "spatial: %s, normalize: %s, ret_per_layer: %s)",
+            self.__class__.__name__,
+            trunk_network,
+            trunk_pretrained,
+            trunk_eval_mode,
+            linear_pretrained,
+            linear_eval_mode,
+            linear_use_dropout,
+            lpips,
+            spatial,
+            normalize,
+            ret_per_layer,
+        )
 
         self._spatial = spatial
         self._use_lpips = lpips
         self._normalize = normalize
         self._ret_per_layer = ret_per_layer
-        self._shift = K.constant(np.array([-.030, -.088, -.188],
-                                          dtype="float32")[None, None, None, :])
-        self._scale = K.constant(np.array([.458, .448, .450],
-                                          dtype="float32")[None, None, None, :])
+        self._shift = K.constant(
+            np.array([-0.030, -0.088, -0.188], dtype="float32")[None, None, None, :]
+        )
+        self._scale = K.constant(
+            np.array([0.458, 0.448, 0.450], dtype="float32")[None, None, None, :]
+        )
 
         # Loss needs to be done as fp32. We could cast at output, but better to update the model
-        switch_mixed_precision = tf.keras.mixed_precision.global_policy().name == "mixed_float16"
+        switch_mixed_precision = (
+            tf.keras.mixed_precision.global_policy().name == "mixed_float16"
+        )
         if switch_mixed_precision:
             logger.debug("Temporarily disabling mixed precision")
             tf.keras.mixed_precision.set_global_policy("float32")
 
-        self._trunk_net = _LPIPSTrunkNet(trunk_network, trunk_eval_mode, trunk_pretrained)()
-        self._linear_net = _LPIPSLinearNet(trunk_network,
-                                           linear_eval_mode,
-                                           linear_pretrained,
-                                           self._trunk_net,
-                                           linear_use_dropout)()
+        self._trunk_net = _LPIPSTrunkNet(
+            trunk_network, trunk_eval_mode, trunk_pretrained
+        )()
+        self._linear_net = _LPIPSLinearNet(
+            trunk_network,
+            linear_eval_mode,
+            linear_pretrained,
+            self._trunk_net,
+            linear_use_dropout,
+        )()
         if switch_mixed_precision:
             logger.debug("Re-enabling mixed precision")
             tf.keras.mixed_precision.set_global_policy("mixed_float16")
         logger.debug("Initialized: %s", self.__class__.__name__)
 
-    def _process_diffs(self, inputs: List[tf.Tensor]) -> List[tf.Tensor]:
-        """ Perform processing on the Trunk Network outputs.
+    def _process_diffs(self, inputs: list[tf.Tensor]) -> list[tf.Tensor]:
+        """Perform processing on the Trunk Network outputs.
 
         If :attr:`use_ldip` is enabled, process the diff values through the linear network,
         otherwise return the diff values summed on the channels axis.
@@ -340,7 +400,7 @@ class LPIPSLoss():  # pylint:disable=too-few-public-methods
         return [K.sum(x, axis=-1) for x in inputs]
 
     def _process_output(self, inputs: tf.Tensor, output_dims: tuple) -> tf.Tensor:
-        """ Process an individual output based on whether :attr:`is_spatial` has been selected.
+        """Process an individual output based on whether :attr:`is_spatial` has been selected.
 
         When spatial output is selected, all outputs are sized to the shape of the original True
         input Tensor. When not selected, the mean across the spatial axes (h, w) are returned
@@ -363,7 +423,7 @@ class LPIPSLoss():  # pylint:disable=too-few-public-methods
         return K.mean(inputs, axis=(1, 2), keepdims=True)
 
     def __call__(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-        """ Perform the LPIPS Loss Function.
+        """Perform the LPIPS Loss Function.
 
         Parameters
         ----------
@@ -387,8 +447,9 @@ class LPIPSLoss():  # pylint:disable=too-few-public-methods
         net_true = self._trunk_net(y_true)
         net_pred = self._trunk_net(y_pred)
 
-        diffs = [(out_true - out_pred) ** 2
-                 for out_true, out_pred in zip(net_true, net_pred)]
+        diffs = [
+            (out_true - out_pred) ** 2 for out_true, out_pred in zip(net_true, net_pred)
+        ]
 
         dims = K.int_shape(y_true)[1:3]
         res = [self._process_output(diff, dims) for diff in self._process_diffs(diffs)]
@@ -397,4 +458,4 @@ class LPIPSLoss():  # pylint:disable=too-few-public-methods
         val = K.sum(res, axis=axis)
 
         retval = (val, res) if self._ret_per_layer else val
-        return retval / 10.0   # Reduce by factor of 10 'cos this loss is STRONG
+        return retval / 10.0  # Reduce by factor of 10 'cos this loss is STRONG

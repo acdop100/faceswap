@@ -1,20 +1,32 @@
 #!/usr/bin python3
 """ The optional GUI for faceswap """
+from __future__ import annotations
 
 import logging
 import sys
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
+from tkinter import ttk
 
-from lib.gui import (TaskBar, CliOptions, CommandNotebook, ConsoleOut, DisplayNotebook,
-                     get_images, initialize_images, initialize_config, LastSession,
-                     MainMenuBar, preview_trigger, ProcessWrapper, StatusBar)
+from lib.gui import CliOptions
+from lib.gui import CommandNotebook
+from lib.gui import ConsoleOut
+from lib.gui import DisplayNotebook
+from lib.gui import get_images
+from lib.gui import initialize_config
+from lib.gui import initialize_images
+from lib.gui import LastSession
+from lib.gui import MainMenuBar
+from lib.gui import preview_trigger
+from lib.gui import ProcessWrapper
+from lib.gui import StatusBar
+from lib.gui import TaskBar
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class FaceswapGui(tk.Tk):
-    """ The Graphical User Interface """
+    """The Graphical User Interface"""
 
     def __init__(self, debug):
         logger.debug("Initializing %s", self.__class__.__name__)
@@ -23,10 +35,12 @@ class FaceswapGui(tk.Tk):
         self._init_args = dict(debug=debug)
         self._config = self.initialize_globals()
         self.set_fonts()
-        self._config.set_geometry(1200, 640, self._config.user_config_dict["fullscreen"])
+        self._config.set_geometry(
+            1200, 640, self._config.user_config_dict["fullscreen"]
+        )
 
         self.wrapper = ProcessWrapper()
-        self.objects = dict()
+        self.objects = {}
 
         get_images().delete_preview()
         preview_trigger().clear(trigger_type=None)
@@ -36,7 +50,7 @@ class FaceswapGui(tk.Tk):
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def initialize_globals(self):
-        """ Initialize config and images global constants """
+        """Initialize config and images global constants"""
         cliopts = CliOptions()
         statusbar = StatusBar(self)
         config = initialize_config(self, cliopts, statusbar)
@@ -44,17 +58,18 @@ class FaceswapGui(tk.Tk):
         return config
 
     def set_fonts(self):
-        """ Set global default font """
+        """Set global default font"""
         tk.font.nametofont("TkFixedFont").configure(size=self._config.default_font[1])
         for font in ("TkDefaultFont", "TkHeadingFont", "TkMenuFont"):
-            tk.font.nametofont(font).configure(family=self._config.default_font[0],
-                                               size=self._config.default_font[1])
+            tk.font.nametofont(font).configure(
+                family=self._config.default_font[0], size=self._config.default_font[1]
+            )
 
     def build_gui(self, rebuild=False):
-        """ Build the GUI """
+        """Build the GUI"""
         logger.debug("Building GUI")
         if not rebuild:
-            self.tk.call('wm', 'iconphoto', self._w, get_images().icons["favicon"])
+            self.tk.call("wm", "iconphoto", self._w, get_images().icons["favicon"])
             self.configure(menu=MainMenuBar(self))
 
         if rebuild:
@@ -68,25 +83,24 @@ class FaceswapGui(tk.Tk):
 
         self.objects["command"] = CommandNotebook(self.objects["container_top"])
         self.objects["display"] = DisplayNotebook(self.objects["container_top"])
-        self.objects["console"] = ConsoleOut(self.objects["container_bottom"],
-                                             self._init_args["debug"])
+        self.objects["console"] = ConsoleOut(
+            self.objects["container_bottom"], self._init_args["debug"]
+        )
         self.set_initial_focus()
         self.set_layout()
         self._config.set_default_options()
         logger.debug("Built GUI")
 
     def add_containers(self):
-        """ Add the paned window containers that
-            hold each main area of the gui """
+        """Add the paned window containers that
+        hold each main area of the gui"""
         logger.debug("Adding containers")
-        maincontainer = ttk.PanedWindow(self,
-                                        orient=tk.VERTICAL,
-                                        name="pw_main")
+        maincontainer = ttk.PanedWindow(self, orient=tk.VERTICAL, name="pw_main")
         maincontainer.pack(fill=tk.BOTH, expand=True)
 
-        topcontainer = ttk.PanedWindow(maincontainer,
-                                       orient=tk.HORIZONTAL,
-                                       name="pw_top")
+        topcontainer = ttk.PanedWindow(
+            maincontainer, orient=tk.HORIZONTAL, name="pw_top"
+        )
         maincontainer.add(topcontainer)
 
         bottomcontainer = ttk.Frame(maincontainer, name="frame_bottom")
@@ -98,14 +112,14 @@ class FaceswapGui(tk.Tk):
         logger.debug("Added containers")
 
     def set_initial_focus(self):
-        """ Set the tab focus from settings """
+        """Set the tab focus from settings"""
         tab = self._config.user_config_dict["tab"]
         logger.debug("Setting focus for tab: %s", tab)
         self._config.set_active_tab_by_name(tab)
         logger.debug("Focus set to: %s", tab)
 
     def set_layout(self):
-        """ Set initial layout """
+        """Set initial layout"""
         self.update_idletasks()
         config_opts = self._config.user_config_dict
         r_width = self.winfo_width()
@@ -114,15 +128,22 @@ class FaceswapGui(tk.Tk):
         h_ratio = 1 - (config_opts["console_panel_height"] / 100.0)
         width = round(r_width * w_ratio)
         height = round(r_height * h_ratio)
-        logger.debug("Setting Initial Layout: (root_width: %s, root_height: %s, width_ratio: %s, "
-                     "height_ratio: %s, width: %s, height: %s", r_width, r_height, w_ratio,
-                     h_ratio, width, height)
+        logger.debug(
+            "Setting Initial Layout: (root_width: %s, root_height: %s, width_ratio: %s, "
+            "height_ratio: %s, width: %s, height: %s",
+            r_width,
+            r_height,
+            w_ratio,
+            h_ratio,
+            width,
+            height,
+        )
         self.objects["container_top"].sashpos(0, width)
         self.objects["container_main"].sashpos(0, height)
         self.update_idletasks()
 
     def rebuild(self):
-        """ Rebuild the GUI on config change """
+        """Rebuild the GUI on config change"""
         logger.debug("Redrawing GUI")
         session_state = self._last_session.to_dict()
         self._config.refresh_config()
@@ -134,9 +155,9 @@ class FaceswapGui(tk.Tk):
         logger.debug("GUI Redrawn")
 
     def close_app(self, *args):  # pylint: disable=unused-argument
-        """ Close Python. This is here because the graph
-            animation function continues to run even when
-            tkinter has gone away """
+        """Close Python. This is here because the graph
+        animation function continues to run even when
+        tkinter has gone away"""
         logger.debug("Close Requested")
 
         if not self._confirm_close_on_running_task():
@@ -155,7 +176,7 @@ class FaceswapGui(tk.Tk):
         sys.exit(0)
 
     def _confirm_close_on_running_task(self):
-        """ Pop a confirmation box to close the GUI if a task is running
+        """Pop a confirmation box to close the GUI if a task is running
 
         Returns
         -------
@@ -166,18 +187,21 @@ class FaceswapGui(tk.Tk):
             return True
 
         confirmtxt = "Processes are still running.\n\nAre you sure you want to exit?"
-        if not messagebox.askokcancel("Close", confirmtxt, default="cancel", icon="warning"):
+        if not messagebox.askokcancel(
+            "Close", confirmtxt, default="cancel", icon="warning"
+        ):
             logger.debug("Close Cancelled")
             return False
         logger.debug("Close confirmed")
         return True
 
 
-class Gui():  # pylint: disable=too-few-public-methods
-    """ The GUI process. """
+class Gui:  # pylint: disable=too-few-public-methods
+    """The GUI process."""
+
     def __init__(self, arguments):
         self.root = FaceswapGui(arguments.debug)
 
     def process(self):
-        """ Builds the GUI """
+        """Builds the GUI"""
         self.root.mainloop()

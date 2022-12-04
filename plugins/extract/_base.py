@@ -2,26 +2,35 @@
 """ Base class for Faceswap :mod:`~plugins.extract.detect`, :mod:`~plugins.extract.align` and
 :mod:`~plugins.extract.mask` Plugins
 """
+from __future__ import annotations
+
 import logging
 import sys
-
-from dataclasses import dataclass, field
-from typing import (Any, Callable, Dict, Generator, List, Optional,
-                    Sequence, Union, Tuple, TYPE_CHECKING)
+from collections.abc import Generator
+from collections.abc import Sequence
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
 
 import numpy as np
-from tensorflow.python.framework import errors_impl as tf_errors  # pylint:disable=no-name-in-module  # noqa
+from tensorflow.python.framework import (
+    errors_impl as tf_errors,
+)  # pylint:disable=no-name-in-module  # noqa
 
-from lib.multithreading import MultiThread
-from lib.queue_manager import queue_manager
-from lib.utils import GetModel, FaceswapError
 from ._config import Config
 from .pipeline import ExtractMedia
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from lib.multithreading import MultiThread
+from lib.queue_manager import queue_manager
+from lib.utils import FaceswapError
+from lib.utils import GetModel
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -37,8 +46,8 @@ logger = logging.getLogger(__name__)
 # TODO Run with warnings mode
 
 
-def _get_config(plugin_name: str, configfile: Optional[str] = None) -> Dict[str, Any]:
-    """ Return the configuration for the requested model
+def _get_config(plugin_name: str, configfile: str | None = None) -> dict[str, Any]:
+    """Return the configuration for the requested model
 
     Parameters
     ----------
@@ -61,7 +70,7 @@ BatchType = Union["DetectorBatch", "AlignerBatch", "MaskerBatch", "RecogBatch"]
 
 @dataclass
 class ExtractorBatch:
-    """ Dataclass for holding a batch flowing through post Detector plugins.
+    """Dataclass for holding a batch flowing through post Detector plugins.
 
     The batch size for post Detector plugins is not the same as the overall batch size.
     An image may contain 0 or more detected faces, and these need to be split and recombined
@@ -84,17 +93,19 @@ class ExtractorBatch:
     data: dict
         Any specific data required during the processing phase for a particular plugin
     """
-    image: List[np.ndarray] = field(default_factory=list)
-    detected_faces: Sequence[Union["DetectedFace",
-                             List["DetectedFace"]]] = field(default_factory=list)
-    filename: List[str] = field(default_factory=list)
+
+    image: list[np.ndarray] = field(default_factory=list)
+    detected_faces: Sequence[DetectedFace | list[DetectedFace]] = field(
+        default_factory=list
+    )
+    filename: list[str] = field(default_factory=list)
     feed: np.ndarray = np.array([])
     prediction: np.ndarray = np.array([])
-    data: List[Dict[str, Any]] = field(default_factory=list)
+    data: list[dict[str, Any]] = field(default_factory=list)
 
 
-class Extractor():
-    """ Extractor Plugin Object
+class Extractor:
+    """Extractor Plugin Object
 
     All ``_base`` classes for Aligners, Detectors and Maskers inherit from this class.
 
@@ -156,19 +167,31 @@ class Extractor():
     plugins.extract.pipeline : The extract pipeline that configures and calls all plugins
 
     """
-    def __init__(self,
-                 git_model_id: Optional[int] = None,
-                 model_filename: Optional[Union[str, List[str]]] = None,
-                 exclude_gpus: Optional[List[int]] = None,
-                 configfile: Optional[str] = None,
-                 instance: int = 0) -> None:
-        logger.debug("Initializing %s: (git_model_id: %s, model_filename: %s, exclude_gpus: %s, "
-                     "configfile: %s, instance: %s, )", self.__class__.__name__, git_model_id,
-                     model_filename, exclude_gpus, configfile, instance)
+
+    def __init__(
+        self,
+        git_model_id: int | None = None,
+        model_filename: str | list[str] | None = None,
+        exclude_gpus: list[int] | None = None,
+        configfile: str | None = None,
+        instance: int = 0,
+    ) -> None:
+        logger.debug(
+            "Initializing %s: (git_model_id: %s, model_filename: %s, exclude_gpus: %s, "
+            "configfile: %s, instance: %s, )",
+            self.__class__.__name__,
+            git_model_id,
+            model_filename,
+            exclude_gpus,
+            configfile,
+            instance,
+        )
         self._is_initialized = False
         self._instance = instance
         self._exclude_gpus = exclude_gpus
-        self.config = _get_config(".".join(self.__module__.split(".")[-2:]), configfile=configfile)
+        self.config = _get_config(
+            ".".join(self.__module__.split(".")[-2:]), configfile=configfile
+        )
         """ dict: Config for this plugin, loaded from ``extract.ini`` configfile """
 
         self.model_path = self._get_model(git_model_id, model_filename)
@@ -176,7 +199,7 @@ class Extractor():
         be a list of strings """
 
         # << SET THE FOLLOWING IN PLUGINS __init__ IF DIFFERENT FROM DEFAULT >> #
-        self.name: Optional[str] = None
+        self.name: str | None = None
         self.input_size = 0
         self.color_format: Literal["BGR", "RGB", "GRAY"] = "BGR"
         self.vram = 0
@@ -187,7 +210,7 @@ class Extractor():
         self.queue_size = 1
         """ int: Queue size for all internal queues. Set in :func:`initialize()` """
 
-        self.model: Optional[Union["KSession", "cv2.dnn.Net"]] = None
+        self.model: KSession | cv2.dnn.Net | None = None
         """varies: The model for this plugin. Set in the plugin's :func:`init_model()` method """
 
         # For detectors that support batching, this should be set to  the calculated batch size
@@ -196,38 +219,44 @@ class Extractor():
         """ int: Batchsize for feeding this model. The number of images the model should
         feed through at once. """
 
-        self._queues: Dict[str, "Queue"] = {}
+        self._queues: dict[str, Queue] = {}
         """ dict: in + out queues and internal queues for this plugin, """
 
-        self._threads: List[MultiThread] = []
+        self._threads: list[MultiThread] = []
         """ list: Internal threads for this plugin """
 
-        self._extract_media: Dict[str, ExtractMedia] = {}
+        self._extract_media: dict[str, ExtractMedia] = {}
         """ dict: The :class:`plugins.extract.pipeline.ExtractMedia` objects currently being
         processed. Stored at input for pairing back up on output of extractor process """
 
         # << THE FOLLOWING PROTECTED ATTRIBUTES ARE SET IN PLUGIN TYPE _base.py >>> #
-        self._plugin_type: Optional[Literal["align", "detect", "recognition", "mask"]] = None
+        self._plugin_type: None | (
+            Literal["align", "detect", "recognition", "mask"]
+        ) = None
         """ str: Plugin type. ``detect`, ``align``, ``recognise`` or ``mask`` set in
         ``<plugin_type>._base`` """
 
         # << Objects for splitting frame's detected faces and rejoining them >>
         # << for post-detector pliugins                                      >>
-        self._faces_per_filename: Dict[str, int] = {}  # Tracking for recompiling batches
-        self._rollover: Optional[ExtractMedia] = None  # batch rollover items
-        self._output_faces: List["DetectedFace"] = []  # Recompiled output faces from plugin
+        self._faces_per_filename: dict[
+            str, int
+        ] = {}  # Tracking for recompiling batches
+        self._rollover: ExtractMedia | None = None  # batch rollover items
+        self._output_faces: list[
+            DetectedFace
+        ] = []  # Recompiled output faces from plugin
 
         logger.debug("Initialized _base %s", self.__class__.__name__)
 
     # <<< OVERIDABLE METHODS >>> #
     def init_model(self) -> None:
-        """ **Override method**
+        """**Override method**
 
-        Override this method to execute the specific model initialization method """
+        Override this method to execute the specific model initialization method"""
         raise NotImplementedError
 
     def process_input(self, batch: BatchType) -> None:
-        """ **Override method**
+        """**Override method**
 
         Override this method for specific extractor pre-processing of image
 
@@ -239,7 +268,7 @@ class Extractor():
         raise NotImplementedError
 
     def predict(self, feed: np.ndarray) -> np.ndarray:
-        """ **Override method**
+        """**Override method**
 
         Override this method for specific extractor model prediction function
 
@@ -263,7 +292,7 @@ class Extractor():
         raise NotImplementedError
 
     def process_output(self, batch: BatchType) -> None:
-        """ **Override method**
+        """**Override method**
 
         Override this method for specific extractor model post predict function
 
@@ -283,7 +312,7 @@ class Extractor():
         raise NotImplementedError
 
     def _predict(self, batch: BatchType) -> BatchType:
-        """ **Override method** (at `<plugin_type>` level)
+        """**Override method** (at `<plugin_type>` level)
 
         This method should be overridden at the `<plugin_type>` level (IE.
         ``plugins.extract.detect._base`` or ``plugins.extract.align._base``) and should not
@@ -300,7 +329,7 @@ class Extractor():
         raise NotImplementedError
 
     def _process_input(self, batch: BatchType) -> BatchType:
-        """ **Override method** (at `<plugin_type>` level)
+        """**Override method** (at `<plugin_type>` level)
 
         This method should be overridden at the `<plugin_type>` level (IE.
         ``plugins.extract.detect._base`` or ``plugins.extract.align._base``) and should not
@@ -325,7 +354,7 @@ class Extractor():
         return batch
 
     def _process_output(self, batch: BatchType) -> BatchType:
-        """ **Override method** (at `<plugin_type>` level)
+        """**Override method** (at `<plugin_type>` level)
 
         This method should be overridden at the `<plugin_type>` level (IE.
         ``plugins.extract.detect._base`` or ``plugins.extract.align._base``) and should not
@@ -345,7 +374,7 @@ class Extractor():
         return batch
 
     def finalize(self, batch: BatchType) -> Generator[ExtractMedia, None, None]:
-        """ **Override method** (at `<plugin_type>` level)
+        """**Override method** (at `<plugin_type>` level)
 
         This method should be overridden at the `<plugin_type>` level (IE.
         :mod:`plugins.extract.detect._base`, :mod:`plugins.extract.align._base` or
@@ -361,8 +390,8 @@ class Extractor():
         """
         raise NotImplementedError
 
-    def get_batch(self, queue: "Queue") -> Tuple[bool, BatchType]:
-        """ **Override method** (at `<plugin_type>` level)
+    def get_batch(self, queue: Queue) -> tuple[bool, BatchType]:
+        """**Override method** (at `<plugin_type>` level)
 
         This method should be overridden at the `<plugin_type>` level (IE.
         :mod:`plugins.extract.detect._base`, :mod:`plugins.extract.align._base` or
@@ -380,7 +409,7 @@ class Extractor():
 
     # <<< THREADING METHODS >>> #
     def start(self) -> None:
-        """ Start all threads
+        """Start all threads
 
         Exposed for :mod:`~plugins.extract.pipeline` to start plugin's threads
         """
@@ -388,7 +417,7 @@ class Extractor():
             thread.start()
 
     def join(self) -> None:
-        """ Join all threads
+        """Join all threads
 
         Exposed for :mod:`~plugins.extract.pipeline` to join plugin's threads
         """
@@ -397,15 +426,15 @@ class Extractor():
             del thread
 
     def check_and_raise_error(self) -> None:
-        """ Check all threads for errors
+        """Check all threads for errors
 
         Exposed for :mod:`~plugins.extract.pipeline` to check plugin's threads for errors
         """
         for thread in self._threads:
             thread.check_and_raise_error()
 
-    def rollover_collector(self, queue: "Queue") -> Union[Literal["EOF"], ExtractMedia]:
-        """ For extractors after the Detectors, the number of detected faces per frame vs extractor
+    def rollover_collector(self, queue: Queue) -> Literal["EOF"] | ExtractMedia:
+        """For extractors after the Detectors, the number of detected faces per frame vs extractor
         batch size mean that faces will need to be split/re-joined with frames. The rollover
         collector can be used to rollover items that don't fit in a batch.
 
@@ -424,9 +453,12 @@ class Extractor():
             The next extract media object, or EOF if pipe has ended
         """
         if self._rollover is not None:
-            logger.trace("Getting from _rollover: (filename: `%s`, faces: %s)",  # type:ignore
-                         self._rollover.filename, len(self._rollover.detected_faces))
-            item: Union[Literal["EOF"], ExtractMedia] = self._rollover
+            logger.trace(
+                "Getting from _rollover: (filename: `%s`, faces: %s)",  # type:ignore
+                self._rollover.filename,
+                len(self._rollover.detected_faces),
+            )
+            item: Literal["EOF"] | ExtractMedia = self._rollover
             self._rollover = None
         else:
             next_item = self._get_item(queue)
@@ -434,19 +466,23 @@ class Extractor():
             assert isinstance(next_item, (ExtractMedia, str))
             item = next_item
             if item != "EOF":
-                logger.trace("Getting from queue: (filename: %s, faces: %s)",  # type:ignore
-                             item.filename, len(item.detected_faces))
+                logger.trace(
+                    "Getting from queue: (filename: %s, faces: %s)",  # type:ignore
+                    item.filename,
+                    len(item.detected_faces),
+                )
                 self._faces_per_filename[item.filename] = len(item.detected_faces)
         return item
 
     # <<< PROTECTED ACCESS METHODS >>> #
     # <<< INIT METHODS >>> #
     @classmethod
-    def _get_model(cls,
-                   git_model_id: Optional[int],
-                   model_filename: Optional[Union[str, List[str]]]
-                   ) -> Optional[Union[str, List[str]]]:
-        """ Check if model is available, if not, download and unzip it """
+    def _get_model(
+        cls,
+        git_model_id: int | None,
+        model_filename: str | list[str] | None,
+    ) -> str | list[str] | None:
+        """Check if model is available, if not, download and unzip it"""
         if model_filename is None:
             logger.debug("No model_filename specified. Returning None")
             return None
@@ -458,98 +494,129 @@ class Extractor():
 
     # <<< PLUGIN INITIALIZATION >>> #
     def initialize(self, *args, **kwargs) -> None:
-        """ Initialize the extractor plugin
+        """Initialize the extractor plugin
 
-            Should be called from :mod:`~plugins.extract.pipeline`
+        Should be called from :mod:`~plugins.extract.pipeline`
         """
-        logger.debug("initialize %s: (args: %s, kwargs: %s)",
-                     self.__class__.__name__, args, kwargs)
+        logger.debug(
+            "initialize %s: (args: %s, kwargs: %s)",
+            self.__class__.__name__,
+            args,
+            kwargs,
+        )
         assert self._plugin_type is not None and self.name is not None
         if self._is_initialized:
             # When batch processing, plugins will be initialized on first job in batch
-            logger.debug("Plugin already initialized: %s (%s)",
-                         self.name, self._plugin_type.title())
+            logger.debug(
+                "Plugin already initialized: %s (%s)",
+                self.name,
+                self._plugin_type.title(),
+            )
             return
 
         logger.info("Initializing %s (%s)...", self.name, self._plugin_type.title())
         self.queue_size = 1
         name = self.name.replace(" ", "_").lower()
-        self._add_queues(kwargs["in_queue"],
-                         kwargs["out_queue"],
-                         [f"predict_{name}", f"post_{name}"])
+        self._add_queues(
+            kwargs["in_queue"], kwargs["out_queue"], [f"predict_{name}", f"post_{name}"]
+        )
         self._compile_threads()
         try:
             self.init_model()
         except tf_errors.UnknownError as err:
             if "failed to get convolution algorithm" in str(err).lower():
-                msg = ("Tensorflow raised an unknown error. This is most likely caused by a "
-                       "failure to launch cuDNN which can occur for some GPU/Tensorflow "
-                       "combinations. You should enable `allow_growth` to attempt to resolve this "
-                       "issue:"
-                       "\nGUI: Go to Settings > Extract Plugins > Global and enable the "
-                       "`allow_growth` option."
-                       "\nCLI: Go to `faceswap/config/extract.ini` and change the `allow_growth "
-                       "option to `True`.")
+                msg = (
+                    "Tensorflow raised an unknown error. This is most likely caused by a "
+                    "failure to launch cuDNN which can occur for some GPU/Tensorflow "
+                    "combinations. You should enable `allow_growth` to attempt to resolve this "
+                    "issue:"
+                    "\nGUI: Go to Settings > Extract Plugins > Global and enable the "
+                    "`allow_growth` option."
+                    "\nCLI: Go to `faceswap/config/extract.ini` and change the `allow_growth "
+                    "option to `True`."
+                )
                 raise FaceswapError(msg) from err
             raise err
         self._is_initialized = True
-        logger.info("Initialized %s (%s) with batchsize of %s",
-                    self.name, self._plugin_type.title(), self.batchsize)
+        logger.info(
+            "Initialized %s (%s) with batchsize of %s",
+            self.name,
+            self._plugin_type.title(),
+            self.batchsize,
+        )
 
-    def _add_queues(self,
-                    in_queue: "Queue",
-                    out_queue: "Queue",
-                    queues: List[str]) -> None:
-        """ Add the queues
-            in_queue and out_queue should be previously created queue manager queues.
-            queues should be a list of queue names """
+    def _add_queues(self, in_queue: Queue, out_queue: Queue, queues: list[str]) -> None:
+        """Add the queues
+        in_queue and out_queue should be previously created queue manager queues.
+        queues should be a list of queue names"""
         self._queues["in"] = in_queue
         self._queues["out"] = out_queue
         for q_name in queues:
             self._queues[q_name] = queue_manager.get_queue(
                 name=f"{self._plugin_type}{self._instance}_{q_name}",
-                maxsize=self.queue_size)
+                maxsize=self.queue_size,
+            )
 
     # <<< THREAD METHODS >>> #
     def _compile_threads(self) -> None:
-        """ Compile the threads into self._threads list """
+        """Compile the threads into self._threads list"""
         assert self.name is not None
         logger.debug("Compiling %s threads", self._plugin_type)
         name = self.name.replace(" ", "_").lower()
         base_name = f"{self._plugin_type}_{name}"
-        self._add_thread(f"{base_name}_input",
-                         self._process_input,
-                         self._queues["in"],
-                         self._queues[f"predict_{name}"])
-        self._add_thread(f"{base_name}_predict",
-                         self._predict,
-                         self._queues[f"predict_{name}"],
-                         self._queues[f"post_{name}"])
-        self._add_thread(f"{base_name}_output",
-                         self._process_output,
-                         self._queues[f"post_{name}"],
-                         self._queues["out"])
+        self._add_thread(
+            f"{base_name}_input",
+            self._process_input,
+            self._queues["in"],
+            self._queues[f"predict_{name}"],
+        )
+        self._add_thread(
+            f"{base_name}_predict",
+            self._predict,
+            self._queues[f"predict_{name}"],
+            self._queues[f"post_{name}"],
+        )
+        self._add_thread(
+            f"{base_name}_output",
+            self._process_output,
+            self._queues[f"post_{name}"],
+            self._queues["out"],
+        )
         logger.debug("Compiled %s threads: %s", self._plugin_type, self._threads)
 
-    def _add_thread(self,
-                    name: str,
-                    function: Callable[[BatchType], BatchType],
-                    in_queue: "Queue",
-                    out_queue: "Queue") -> None:
-        """ Add a MultiThread thread to self._threads """
-        logger.debug("Adding thread: (name: %s, function: %s, in_queue: %s, out_queue: %s)",
-                     name, function, in_queue, out_queue)
-        self._threads.append(MultiThread(target=self._thread_process,
-                                         name=name,
-                                         function=function,
-                                         in_queue=in_queue,
-                                         out_queue=out_queue))
+    def _add_thread(
+        self,
+        name: str,
+        function: Callable[[BatchType], BatchType],
+        in_queue: Queue,
+        out_queue: Queue,
+    ) -> None:
+        """Add a MultiThread thread to self._threads"""
+        logger.debug(
+            "Adding thread: (name: %s, function: %s, in_queue: %s, out_queue: %s)",
+            name,
+            function,
+            in_queue,
+            out_queue,
+        )
+        self._threads.append(
+            MultiThread(
+                target=self._thread_process,
+                name=name,
+                function=function,
+                in_queue=in_queue,
+                out_queue=out_queue,
+            )
+        )
         logger.debug("Added thread: %s", name)
 
-    def _obtain_batch_item(self, function: Callable[[BatchType], BatchType],
-                           in_queue: "Queue",
-                           out_queue: "Queue") -> Optional[BatchType]:
-        """ Obtain the batch item from the in queue for the current process.
+    def _obtain_batch_item(
+        self,
+        function: Callable[[BatchType], BatchType],
+        in_queue: Queue,
+        out_queue: Queue,
+    ) -> BatchType | None:
+        """Obtain the batch item from the in queue for the current process.
 
         Parameters
         ----------
@@ -565,7 +632,7 @@ class Extractor():
         :class:`ExtractorBatch` or ``None``
             The batch, if one exists, or ``None`` if queue is exhausted
         """
-        batch: Union[Literal["EOF"], BatchType, ExtractMedia]
+        batch: Literal["EOF"] | BatchType | ExtractMedia
         if function.__name__ == "_process_input":  # Process input items to batches
             exhausted, batch = self.get_batch(in_queue)
             if exhausted:
@@ -584,11 +651,13 @@ class Extractor():
         assert not isinstance(batch, ExtractMedia)
         return batch
 
-    def _thread_process(self,
-                        function: Callable[[BatchType], BatchType],
-                        in_queue: "Queue",
-                        out_queue: "Queue") -> None:
-        """ Perform a plugin function in a thread
+    def _thread_process(
+        self,
+        function: Callable[[BatchType], BatchType],
+        in_queue: Queue,
+        out_queue: Queue,
+    ) -> None:
+        """Perform a plugin function in a thread
 
         Parameters
         ----------
@@ -598,7 +667,7 @@ class Extractor():
             The input queue for the function
         out_queue: :class:`queue.Queue`
             The output queue from the function
-         """
+        """
         logger.debug("threading: (function: '%s')", function.__name__)
         while True:
             batch = self._obtain_batch_item(function, in_queue, out_queue)
@@ -610,14 +679,16 @@ class Extractor():
                 batch = function(batch)
             except tf_errors.UnknownError as err:
                 if "failed to get convolution algorithm" in str(err).lower():
-                    msg = ("Tensorflow raised an unknown error. This is most likely caused by a "
-                           "failure to launch cuDNN which can occur for some GPU/Tensorflow "
-                           "combinations. You should enable `allow_growth` to attempt to resolve "
-                           "this issue:"
-                           "\nGUI: Go to Settings > Extract Plugins > Global and enable the "
-                           "`allow_growth` option."
-                           "\nCLI: Go to `faceswap/config/extract.ini` and change the "
-                           "`allow_growth option to `True`.")
+                    msg = (
+                        "Tensorflow raised an unknown error. This is most likely caused by a "
+                        "failure to launch cuDNN which can occur for some GPU/Tensorflow "
+                        "combinations. You should enable `allow_growth` to attempt to resolve "
+                        "this issue:"
+                        "\nGUI: Go to Settings > Extract Plugins > Global and enable the "
+                        "`allow_growth` option."
+                        "\nCLI: Go to `faceswap/config/extract.ini` and change the "
+                        "`allow_growth option to `True`."
+                    )
                     raise FaceswapError(msg) from err
                 raise err
             if function.__name__ == "_process_output":
@@ -630,13 +701,19 @@ class Extractor():
         out_queue.put("EOF")
 
     # <<< QUEUE METHODS >>> #
-    def _get_item(self, queue: "Queue") -> Union[Literal["EOF"], ExtractMedia, BatchType]:
-        """ Yield one item from a queue """
+    def _get_item(self, queue: Queue) -> Literal["EOF"] | ExtractMedia | BatchType:
+        """Yield one item from a queue"""
         item = queue.get()
         if isinstance(item, ExtractMedia):
-            logger.trace("filename: '%s', image shape: %s, detected_faces: %s, "  # type:ignore
-                         "queue: %s, item: %s",
-                         item.filename, item.image_shape, item.detected_faces, queue, item)
+            logger.trace(
+                "filename: '%s', image shape: %s, detected_faces: %s, "  # type:ignore
+                "queue: %s, item: %s",
+                item.filename,
+                item.image_shape,
+                item.detected_faces,
+                queue,
+                item,
+            )
             self._extract_media[item.filename] = item
         else:
             logger.trace("item: %s, queue: %s", item, queue)  # type:ignore

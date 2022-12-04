@@ -9,19 +9,19 @@ This module handles:
     - The loading, saving and backing up of keras models to and from disk.
     - The loading and freezing of weights for model plugins.
 """
+from __future__ import annotations
+
 import logging
 import os
 import sys
-
-from typing import List, Optional, TYPE_CHECKING
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import TYPE_CHECKING
 
 from lib.model.backup_restore import Backup
-from lib.utils import FaceswapError, get_backend
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from lib.utils import FaceswapError
+from lib.utils import get_backend
 
 if get_backend() == "amd":
     import keras
@@ -29,7 +29,10 @@ if get_backend() == "amd":
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
     from tensorflow import keras  # pylint:disable=import-error,no-name-in-module
-    from tensorflow.keras.models import load_model, Model as KModel  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.models import (
+        load_model,
+        Model as KModel,
+    )  # noqa pylint:disable=import-error,no-name-in-module
 
 if TYPE_CHECKING:
     from .model import ModelBase
@@ -38,9 +41,9 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def get_all_sub_models(
-        model: keras.models.Model,
-        models: Optional[List[keras.models.Model]] = None) -> List[keras.models.Model]:
-    """ For a given model, return all sub-models that occur (recursively) as children.
+    model: keras.models.Model, models: list[keras.models.Model] | None = None
+) -> list[keras.models.Model]:
+    """For a given model, return all sub-models that occur (recursively) as children.
 
     Parameters
     ----------
@@ -65,8 +68,8 @@ def get_all_sub_models(
     return models
 
 
-class IO():
-    """ Model saving and loading functions.
+class IO:
+    """Model saving and loading functions.
 
     Handles the loading and saving of the plugin model from disk as well as the model backup and
     snapshot functions.
@@ -85,16 +88,19 @@ class IO():
         always saves the optimizer weights. `"exit"` only saves the optimizer weights on an exit
         request.
     """
-    def __init__(self,
-                 plugin: "ModelBase",
-                 model_dir: str,
-                 is_predict: bool,
-                 save_optimizer: Literal["never", "always", "exit"]) -> None:
+
+    def __init__(
+        self,
+        plugin: ModelBase,
+        model_dir: str,
+        is_predict: bool,
+        save_optimizer: Literal["never", "always", "exit"],
+    ) -> None:
         self._plugin = plugin
         self._is_predict = is_predict
         self._model_dir = model_dir
         self._save_optimizer = save_optimizer
-        self._history: List[List[float]] = [[], []]  # Loss histories per save iteration
+        self._history: list[list[float]] = [[], []]  # Loss histories per save iteration
         self._backup = Backup(self._model_dir, self._plugin.name)
 
     @property
@@ -104,33 +110,40 @@ class IO():
 
     @property
     def model_exists(self) -> bool:
-        """ bool: ``True`` if a model of the type being loaded exists within the model folder
+        """bool: ``True`` if a model of the type being loaded exists within the model folder
         location otherwise ``False``.
         """
         return os.path.isfile(self._filename)
 
     @property
-    def history(self) -> List[List[float]]:
-        """ list: list of loss histories per side for the current save iteration. """
+    def history(self) -> list[list[float]]:
+        """list: list of loss histories per side for the current save iteration."""
         return self._history
 
     @property
-    def multiple_models_in_folder(self) -> Optional[List[str]]:
-        """ :list: or ``None`` If there are multiple model types in the requested folder, or model
+    def multiple_models_in_folder(self) -> list[str] | None:
+        """:list: or ``None`` If there are multiple model types in the requested folder, or model
         types that don't correspond to the requested plugin type, then returns the list of plugin
-        names that exist in the folder, otherwise returns ``None`` """
-        plugins = [fname.replace(".h5", "")
-                   for fname in os.listdir(self._model_dir)
-                   if fname.endswith(".h5")]
+        names that exist in the folder, otherwise returns ``None``"""
+        plugins = [
+            fname.replace(".h5", "")
+            for fname in os.listdir(self._model_dir)
+            if fname.endswith(".h5")
+        ]
         test_names = plugins + [self._plugin.name]
         test = False if not test_names else os.path.commonprefix(test_names) == ""
         retval = None if not test else plugins
-        logger.debug("plugin name: %s, plugins: %s, test result: %s, retval: %s",
-                     self._plugin.name, plugins, test, retval)
+        logger.debug(
+            "plugin name: %s, plugins: %s, test result: %s, retval: %s",
+            self._plugin.name,
+            plugins,
+            test,
+            retval,
+        )
         return retval
 
     def _load(self) -> keras.models.Model:
-        """ Loads the model from disk
+        """Loads the model from disk
 
         If the predict function is to be called and the model cannot be found in the model folder
         then an error is logged and the process exits.
@@ -145,27 +158,33 @@ class IO():
         """
         logger.debug("Loading model: %s", self._filename)
         if self._is_predict and not self.model_exists:
-            logger.error("Model could not be found in folder '%s'. Exiting", self._model_dir)
+            logger.error(
+                "Model could not be found in folder '%s'. Exiting", self._model_dir
+            )
             sys.exit(1)
 
         try:
             model = load_model(self._filename, compile=False)
         except RuntimeError as err:
             if "unable to get link info" in str(err).lower():
-                msg = (f"Unable to load the model from '{self._filename}'. This may be a "
-                       "temporary error but most likely means that your model has corrupted.\n"
-                       "You can try to load the model again but if the problem persists you "
-                       "should use the Restore Tool to restore your model from backup.\n"
-                       f"Original error: {str(err)}")
+                msg = (
+                    f"Unable to load the model from '{self._filename}'. This may be a "
+                    "temporary error but most likely means that your model has corrupted.\n"
+                    "You can try to load the model again but if the problem persists you "
+                    "should use the Restore Tool to restore your model from backup.\n"
+                    f"Original error: {str(err)}"
+                )
                 raise FaceswapError(msg) from err
             raise err
         except KeyError as err:
             if "unable to open object" in str(err).lower():
-                msg = (f"Unable to load the model from '{self._filename}'. This may be a "
-                       "temporary error but most likely means that your model has corrupted.\n"
-                       "You can try to load the model again but if the problem persists you "
-                       "should use the Restore Tool to restore your model from backup.\n"
-                       f"Original error: {str(err)}")
+                msg = (
+                    f"Unable to load the model from '{self._filename}'. This may be a "
+                    "temporary error but most likely means that your model has corrupted.\n"
+                    "You can try to load the model again but if the problem persists you "
+                    "should use the Restore Tool to restore your model from backup.\n"
+                    f"Original error: {str(err)}"
+                )
                 raise FaceswapError(msg) from err
             raise err
 
@@ -173,7 +192,7 @@ class IO():
         return model
 
     def save(self, is_exit: bool = False, force_save_optimizer: bool = False) -> None:
-        """ Backup and save the model and state file.
+        """Backup and save the model and state file.
 
         Parameters
         ----------
@@ -200,22 +219,30 @@ class IO():
             # pylint:disable=protected-access
             self._backup.backup_model(self._plugin.state._filename)
 
-        include_optimizer = (force_save_optimizer or
-                             self._save_optimizer == "always" or
-                             (self._save_optimizer == "exit" and is_exit))
+        include_optimizer = (
+            force_save_optimizer
+            or self._save_optimizer == "always"
+            or (self._save_optimizer == "exit" and is_exit)
+        )
 
         self._plugin.model.save(self._filename, include_optimizer=include_optimizer)
         self._plugin.state.save()
 
-        msg = "[Saved optimizer state for Snapshot]" if force_save_optimizer else "[Saved models]"
+        msg = (
+            "[Saved optimizer state for Snapshot]"
+            if force_save_optimizer
+            else "[Saved models]"
+        )
         if save_averages:
-            lossmsg = [f"face_{side}: {avg:.5f}"
-                       for side, avg in zip(("a", "b"), save_averages)]
+            lossmsg = [
+                f"face_{side}: {avg:.5f}"
+                for side, avg in zip(("a", "b"), save_averages)
+            ]
             msg += f" - Average loss since last save: {', '.join(lossmsg)}"
         logger.info(msg)
 
-    def _get_save_averages(self) -> List[float]:
-        """ Return the average loss since the last save iteration and reset historical loss """
+    def _get_save_averages(self) -> list[float]:
+        """Return the average loss since the last save iteration and reset historical loss"""
         logger.debug("Getting save averages")
         if not all(loss for loss in self._history):
             logger.debug("No loss in history")
@@ -226,8 +253,8 @@ class IO():
         logger.debug("Average losses since last save: %s", retval)
         return retval
 
-    def _should_backup(self, save_averages: List[float]) -> bool:
-        """ Check whether the loss averages for this save iteration is the lowest that has been
+    def _should_backup(self, save_averages: list[float]) -> bool:
+        """Check whether the loss averages for this save iteration is the lowest that has been
         seen.
 
         This protects against model corruption by only backing up the model if both sides have
@@ -247,24 +274,33 @@ class IO():
         backup = True
         for side, loss in zip(("a", "b"), save_averages):
             if not self._plugin.state.lowest_avg_loss.get(side, None):
-                logger.debug("Set initial save iteration loss average for '%s': %s", side, loss)
+                logger.debug(
+                    "Set initial save iteration loss average for '%s': %s", side, loss
+                )
                 self._plugin.state.lowest_avg_loss[side] = loss
                 continue
-            backup = loss < self._plugin.state.lowest_avg_loss[side] if backup else backup
+            backup = (
+                loss < self._plugin.state.lowest_avg_loss[side] if backup else backup
+            )
 
         if backup:  # Update lowest loss values to the state file
             # pylint:disable=unnecessary-comprehension
-            old_avgs = {key: val for key, val in self._plugin.state.lowest_avg_loss.items()}
+            old_avgs = {
+                key: val for key, val in self._plugin.state.lowest_avg_loss.items()
+            }
             self._plugin.state.lowest_avg_loss["a"] = save_averages[0]
             self._plugin.state.lowest_avg_loss["b"] = save_averages[1]
-            logger.debug("Updated lowest historical save iteration averages from: %s to: %s",
-                         old_avgs, self._plugin.state.lowest_avg_loss)
+            logger.debug(
+                "Updated lowest historical save iteration averages from: %s to: %s",
+                old_avgs,
+                self._plugin.state.lowest_avg_loss,
+            )
 
         logger.debug("Should backup: %s", backup)
         return backup
 
     def snapshot(self) -> None:
-        """ Perform a model snapshot.
+        """Perform a model snapshot.
 
         Notes
         -----
@@ -283,30 +319,39 @@ class IO():
         logger.debug("Performed snapshot")
 
 
-class Weights():
-    """ Handling of freezing and loading model weights
+class Weights:
+    """Handling of freezing and loading model weights
 
     Parameters
     ----------
     plugin: :class:`Model`
         The parent plugin class that owns the IO functions.
     """
-    def __init__(self, plugin: "ModelBase") -> None:
+
+    def __init__(self, plugin: ModelBase) -> None:
         logger.debug("Initializing %s: (plugin: %s)", self.__class__.__name__, plugin)
         self._model = plugin.model
         self._name = plugin.model_name
         self._do_freeze = plugin._args.freeze_weights
         self._weights_file = self._check_weights_file(plugin._args.load_weights)
 
-        freeze_layers = plugin.config.get("freeze_layers")  # Standardized config for freezing
-        load_layers = plugin.config.get("load_layers")  # Standardized config for loading
-        self._freeze_layers = freeze_layers if freeze_layers else ["encoder"]  # No plugin config
-        self._load_layers = load_layers if load_layers else ["encoder"]  # No plugin config
+        freeze_layers = plugin.config.get(
+            "freeze_layers"
+        )  # Standardized config for freezing
+        load_layers = plugin.config.get(
+            "load_layers"
+        )  # Standardized config for loading
+        self._freeze_layers = (
+            freeze_layers if freeze_layers else ["encoder"]
+        )  # No plugin config
+        self._load_layers = (
+            load_layers if load_layers else ["encoder"]
+        )  # No plugin config
         logger.debug("Initialized %s", self.__class__.__name__)
 
     @classmethod
-    def _check_weights_file(cls, weights_file: str) -> Optional[str]:
-        """ Validate that we have a valid path to a .h5 file.
+    def _check_weights_file(cls, weights_file: str) -> str | None:
+        """Validate that we have a valid path to a .h5 file.
 
         Parameters
         ----------
@@ -324,10 +369,14 @@ class Weights():
 
         msg = ""
         if not os.path.exists(weights_file):
-            msg = f"Load weights selected, but the path '{weights_file}' does not exist."
+            msg = (
+                f"Load weights selected, but the path '{weights_file}' does not exist."
+            )
         elif not os.path.splitext(weights_file)[-1].lower() == ".h5":
-            msg = (f"Load weights selected, but the path '{weights_file}' is not a valid Keras "
-                   f"model (.h5) file.")
+            msg = (
+                f"Load weights selected, but the path '{weights_file}' is not a valid Keras "
+                f"model (.h5) file."
+            )
 
         if msg:
             msg += " Please check and try again."
@@ -337,8 +386,8 @@ class Weights():
         return weights_file
 
     def freeze(self) -> None:
-        """ If freeze has been selected in the cli arguments, then freeze those models indicated
-        in the plugin's configuration. """
+        """If freeze has been selected in the cli arguments, then freeze those models indicated
+        in the plugin's configuration."""
         # Blanket unfreeze layers, as checking the value of :attr:`layer.trainable` appears to
         # return ``True`` even when the weights have been frozen
         for layer in get_all_sub_models(self._model):
@@ -350,15 +399,20 @@ class Weights():
 
         for layer in get_all_sub_models(self._model):
             if layer.name in self._freeze_layers:
-                logger.info("Freezing weights for '%s' in model '%s'", layer.name, self._name)
+                logger.info(
+                    "Freezing weights for '%s' in model '%s'", layer.name, self._name
+                )
                 layer.trainable = False
                 self._freeze_layers.remove(layer.name)
         if self._freeze_layers:
-            logger.warning("The following layers were set to be frozen but do not exist in the "
-                           "model: %s", self._freeze_layers)
+            logger.warning(
+                "The following layers were set to be frozen but do not exist in the "
+                "model: %s",
+                self._freeze_layers,
+            )
 
     def load(self, model_exists: bool) -> None:
-        """ Load weights for newly created models, or output warning for pre-existing models.
+        """Load weights for newly created models, or output warning for pre-existing models.
 
         Parameters
         ----------
@@ -369,20 +423,30 @@ class Weights():
             logger.debug("No weights file provided. Not loading weights.")
             return
         if model_exists and self._weights_file:
-            logger.warning("Ignoring weights file '%s' as this model is resuming.",
-                           self._weights_file)
+            logger.warning(
+                "Ignoring weights file '%s' as this model is resuming.",
+                self._weights_file,
+            )
             return
 
         weights_models = self._get_weights_model()
         all_models = get_all_sub_models(self._model)
 
         for model_name in self._load_layers:
-            sub_model = next((lyr for lyr in all_models if lyr.name == model_name), None)
-            sub_weights = next((lyr for lyr in weights_models if lyr.name == model_name), None)
+            sub_model = next(
+                (lyr for lyr in all_models if lyr.name == model_name), None
+            )
+            sub_weights = next(
+                (lyr for lyr in weights_models if lyr.name == model_name), None
+            )
 
             if not sub_model or not sub_weights:
                 msg = f"Skipping layer {model_name} as not in "
-                msg += "current_model." if not sub_model else f"weights '{self._weights_file}.'"
+                msg += (
+                    "current_model."
+                    if not sub_model
+                    else f"weights '{self._weights_file}.'"
+                )
                 logger.warning(msg)
                 continue
 
@@ -399,16 +463,20 @@ class Weights():
         del weights_models
 
         if loaded_ops == 0:
-            raise FaceswapError(f"No weights were succesfully loaded from your weights file: "
-                                f"'{self._weights_file}'. Please check and try again.")
+            raise FaceswapError(
+                f"No weights were succesfully loaded from your weights file: "
+                f"'{self._weights_file}'. Please check and try again."
+            )
         if skipped_ops > 0:
-            logger.warning("%s weight(s) were unable to be loaded for your model. This is most "
-                           "likely because the weights you are trying to load were trained with "
-                           "different settings than you have set for your current model.",
-                           skipped_ops)
+            logger.warning(
+                "%s weight(s) were unable to be loaded for your model. This is most "
+                "likely because the weights you are trying to load were trained with "
+                "different settings than you have set for your current model.",
+                skipped_ops,
+            )
 
-    def _get_weights_model(self) -> List[keras.models.Model]:
-        """ Obtain a list of all sub-models contained within the weights model.
+    def _get_weights_model(self) -> list[keras.models.Model]:
+        """Obtain a list of all sub-models contained within the weights model.
 
         Returns
         -------
@@ -426,15 +494,19 @@ class Weights():
             raise FaceswapError(f"Error loading weights file {self._weights_file}.")
 
         if retval[0].name != self._name:
-            raise FaceswapError(f"You are attempting to load weights from a '{retval[0].name}' "
-                                f"model into a '{self._name}' model. This is not supported.")
+            raise FaceswapError(
+                f"You are attempting to load weights from a '{retval[0].name}' "
+                f"model into a '{self._name}' model. This is not supported."
+            )
         return retval
 
-    def _load_layer_weights(self,
-                            layer: keras.layers.Layer,
-                            sub_weights: keras.layers.Layer,
-                            model_name: str) -> Literal[-1, 0, 1]:
-        """ Load the weights for a single layer.
+    def _load_layer_weights(
+        self,
+        layer: keras.layers.Layer,
+        sub_weights: keras.layers.Layer,
+        model_name: str,
+    ) -> Literal[-1, 0, 1]:
+        """Load the weights for a single layer.
 
         Parameters
         ----------
@@ -456,17 +528,25 @@ class Weights():
             logger.debug("Skipping layer without weights: %s", layer.name)
             return -1
 
-        layer_weights = next((lyr for lyr in sub_weights.layers
-                             if lyr.name == layer.name), None)
+        layer_weights = next(
+            (lyr for lyr in sub_weights.layers if lyr.name == layer.name), None
+        )
         if not layer_weights:
-            logger.warning("The weights file '%s' for layer '%s' does not contain weights for "
-                           "'%s'. Skipping", self._weights_file, model_name, layer.name)
+            logger.warning(
+                "The weights file '%s' for layer '%s' does not contain weights for "
+                "'%s'. Skipping",
+                self._weights_file,
+                model_name,
+                layer.name,
+            )
             return 0
 
         new_weights = layer_weights.get_weights()
         if old_weights[0].shape != new_weights[0].shape:
-            logger.warning("The weights for layer '%s' are of incompatible shapes. Skipping.",
-                           layer.name)
+            logger.warning(
+                "The weights for layer '%s' are of incompatible shapes. Skipping.",
+                layer.name,
+            )
             return 0
         logger.verbose("Setting weights for '%s'", layer.name)  # type:ignore
         layer.set_weights(layer_weights.get_weights())

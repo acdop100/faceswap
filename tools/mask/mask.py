@@ -1,32 +1,51 @@
 #!/usr/bin/env python3
 """ Tool to generate masks and previews of masks for existing alignments file """
+from __future__ import annotations
+
 import logging
 import os
 import sys
-from typing import Any, cast, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import Any
+from typing import cast
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
 
 import cv2
 import numpy as np
 from tqdm import tqdm
 
-from lib.align import Alignments, AlignedFace, DetectedFace, update_legacy_png_header
-from lib.image import FacesLoader, ImagesLoader, ImagesSaver, encode_image
-
+from lib.align import AlignedFace
+from lib.align import Alignments
+from lib.align import DetectedFace
+from lib.align import update_legacy_png_header
+from lib.image import encode_image
+from lib.image import FacesLoader
+from lib.image import ImagesLoader
+from lib.image import ImagesSaver
 from lib.multithreading import MultiThread
 from lib.utils import get_folder
-from plugins.extract.pipeline import Extractor, ExtractMedia
+from plugins.extract.pipeline import ExtractMedia
+from plugins.extract.pipeline import Extractor
 
 if TYPE_CHECKING:
     from argparse import Namespace
     from lib.align.aligned_face import CenteringType
-    from lib.align.alignments import AlignmentFileDict, PNGHeaderDict, PNGHeaderSourceDict
+    from lib.align.alignments import (
+        AlignmentFileDict,
+        PNGHeaderDict,
+        PNGHeaderSourceDict,
+    )
     from lib.queue_manager import EventQueue
 
 logger = logging.getLogger(__name__)  # pylint:disable=invalid-name
 
 
-class Mask():  # pylint:disable=too-few-public-methods
-    """ This tool is part of the Faceswap Tools suite and should be called from
+class Mask:  # pylint:disable=too-few-public-methods
+    """This tool is part of the Faceswap Tools suite and should be called from
     ``python tools.py mask`` command.
 
     Faceswap Masks tool. Generate masks from existing alignments files, and output masks
@@ -37,26 +56,32 @@ class Mask():  # pylint:disable=too-few-public-methods
     arguments: :class:`argparse.Namespace`
         The :mod:`argparse` arguments as passed in from :mod:`tools.py`
     """
-    def __init__(self, arguments: "Namespace") -> None:
-        logger.debug("Initializing %s: (arguments: %s", self.__class__.__name__, arguments)
+
+    def __init__(self, arguments: Namespace) -> None:
+        logger.debug(
+            "Initializing %s: (arguments: %s", self.__class__.__name__, arguments
+        )
         self._update_type = arguments.processing
         self._input_is_faces = arguments.input_type == "faces"
         self._mask_type = arguments.masker
-        self._output = dict(opts=dict(blur_kernel=arguments.blur_kernel,
-                                      threshold=arguments.threshold),
-                            type=arguments.output_type,
-                            full_frame=arguments.full_frame,
-                            suffix=self._get_output_suffix(arguments))
+        self._output = dict(
+            opts=dict(blur_kernel=arguments.blur_kernel, threshold=arguments.threshold),
+            type=arguments.output_type,
+            full_frame=arguments.full_frame,
+            suffix=self._get_output_suffix(arguments),
+        )
         self._counts = dict(face=0, skip=0, update=0)
 
         self._check_input(arguments.input)
         self._saver = self._set_saver(arguments)
         loader = FacesLoader if self._input_is_faces else ImagesLoader
         self._loader = loader(arguments.input)
-        self._faces_saver: Optional[ImagesSaver] = None
+        self._faces_saver: ImagesSaver | None = None
 
-        self._alignments = Alignments(os.path.dirname(arguments.alignments),
-                                      filename=os.path.basename(arguments.alignments))
+        self._alignments = Alignments(
+            os.path.dirname(arguments.alignments),
+            filename=os.path.basename(arguments.alignments),
+        )
 
         self._extractor = self._get_extractor(arguments.exclude_gpus)
         self._set_correct_mask_type()
@@ -65,7 +90,7 @@ class Mask():  # pylint:disable=too-few-public-methods
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def _check_input(self, mask_input: str) -> None:
-        """ Check the input is valid. If it isn't exit with a logged error
+        """Check the input is valid. If it isn't exit with a logged error
 
         Parameters
         ----------
@@ -76,13 +101,15 @@ class Mask():  # pylint:disable=too-few-public-methods
             logger.error("Location cannot be found: '%s'", mask_input)
             sys.exit(0)
         if os.path.isfile(mask_input) and self._input_is_faces:
-            logger.error("Input type 'faces' was selected but input is not a folder: '%s'",
-                         mask_input)
+            logger.error(
+                "Input type 'faces' was selected but input is not a folder: '%s'",
+                mask_input,
+            )
             sys.exit(0)
         logger.debug("input '%s' is valid", mask_input)
 
-    def _set_saver(self, arguments: "Namespace") -> Optional[ImagesSaver]:
-        """ set the saver in a background thread
+    def _set_saver(self, arguments: Namespace) -> ImagesSaver | None:
+        """set the saver in a background thread
 
         Parameters
         ----------
@@ -95,9 +122,15 @@ class Mask():  # pylint:disable=too-few-public-methods
             If output is requested, returns a :class:`lib.image.ImagesSaver` otherwise
             returns ``None``
         """
-        if not hasattr(arguments, "output") or arguments.output is None or not arguments.output:
+        if (
+            not hasattr(arguments, "output")
+            or arguments.output is None
+            or not arguments.output
+        ):
             if self._update_type == "output":
-                logger.error("Processing set as 'output' but no output folder provided.")
+                logger.error(
+                    "Processing set as 'output' but no output folder provided."
+                )
                 sys.exit(0)
             logger.debug("No output provided. Not creating saver")
             return None
@@ -107,8 +140,8 @@ class Mask():  # pylint:disable=too-few-public-methods
         logger.debug(saver)
         return saver
 
-    def _get_extractor(self, exclude_gpus: List[int]) -> Optional[Extractor]:
-        """ Obtain a Mask extractor plugin and launch it
+    def _get_extractor(self, exclude_gpus: list[int]) -> Extractor | None:
+        """Obtain a Mask extractor plugin and launch it
 
         Parameters
         ----------
@@ -131,7 +164,7 @@ class Mask():  # pylint:disable=too-few-public-methods
         return extractor
 
     def _set_correct_mask_type(self):
-        """ Some masks have multiple variants that they can be saved as depending on config options
+        """Some masks have multiple variants that they can be saved as depending on config options
         so update the :attr:`_mask_type` accordingly
         """
         if self._extractor is None or self._mask_type != "bisenet-fp":
@@ -146,7 +179,7 @@ class Mask():  # pylint:disable=too-few-public-methods
         self._mask_type = new_type
 
     def _feed_extractor(self) -> MultiThread:
-        """ Feed the input queue to the Extractor from a faces folder or from source frames in a
+        """Feed the input queue to the Extractor from a faces folder or from source frames in a
         background thread
 
         Returns
@@ -154,24 +187,25 @@ class Mask():  # pylint:disable=too-few-public-methods
         :class:`lib.multithreading.Multithread`:
             The thread that is feeding the extractor.
         """
-        masker_input = getattr(self, f"_input_{'faces' if self._input_is_faces else 'frames'}")
+        masker_input = getattr(
+            self, f"_input_{'faces' if self._input_is_faces else 'frames'}"
+        )
         logger.debug("masker_input: %s", masker_input)
 
         if self._update_type == "output":
-            args: tuple = tuple()
+            args: tuple = ()
         else:
             assert self._extractor is not None
-            args = (self._extractor.input_queue, )
+            args = (self._extractor.input_queue,)
         input_thread = MultiThread(masker_input, *args, thread_count=1)
         input_thread.start()
         logger.debug(input_thread)
         return input_thread
 
-    def _process_face(self,
-                      filename: str,
-                      image: np.ndarray,
-                      metadata: "PNGHeaderDict") -> Optional["ExtractMedia"]:
-        """ Process a single face when masking from face images
+    def _process_face(
+        self, filename: str, image: np.ndarray, metadata: PNGHeaderDict
+    ) -> ExtractMedia | None:
+        """Process a single face when masking from face images
 
         filename: str
             the filename currently being processed
@@ -205,13 +239,15 @@ class Mask():  # pylint:disable=too-few-public-methods
             self._save(frame_name, face_index, detected_face)
             return None
 
-        media = ExtractMedia(filename, image, detected_faces=[detected_face], is_aligned=True)
+        media = ExtractMedia(
+            filename, image, detected_faces=[detected_face], is_aligned=True
+        )
         media.add_frame_metadata(metadata["source"])
         self._counts["update"] += 1
         return media
 
-    def _input_faces(self, *args: Union[tuple, Tuple["EventQueue"]]) -> None:
-        """ Input pre-aligned faces to the Extractor plugin inside a thread
+    def _input_faces(self, *args: tuple | tuple[EventQueue]) -> None:
+        """Input pre-aligned faces to the Extractor plugin inside a thread
 
         Parameters
         ----------
@@ -223,22 +259,33 @@ class Mask():  # pylint:disable=too-few-public-methods
         logger.debug("args: %s", args)
         if self._update_type != "output":
             queue = cast("EventQueue", args[0])
-        for filename, image, metadata in tqdm(self._loader.load(), total=self._loader.count):
+        for filename, image, metadata in tqdm(
+            self._loader.load(), total=self._loader.count
+        ):
             if not metadata:  # Legacy faces. Update the headers
                 if not log_once:
-                    logger.warning("Legacy faces discovered. These faces will be updated")
+                    logger.warning(
+                        "Legacy faces discovered. These faces will be updated"
+                    )
                     log_once = True
                 metadata = update_legacy_png_header(filename, self._alignments)
                 if not metadata:  # Face not found
                     self._counts["skip"] += 1
-                    logger.warning("Legacy face not found in alignments file. This face has not "
-                                   "been updated: '%s'", filename)
+                    logger.warning(
+                        "Legacy face not found in alignments file. This face has not "
+                        "been updated: '%s'",
+                        filename,
+                    )
                     continue
             if not metadata.get("source_frame_dims"):
-                logger.error("The faces need to be re-extracted as at least some of them do not "
-                             "contain information required to correctly generate masks.")
-                logger.error("You can re-extract the face-set by using the Alignments Tool's "
-                             "Extract job.")
+                logger.error(
+                    "The faces need to be re-extracted as at least some of them do not "
+                    "contain information required to correctly generate masks."
+                )
+                logger.error(
+                    "You can re-extract the face-set by using the Alignments Tool's "
+                    "Extract job."
+                )
                 break
             media = self._process_face(filename, image, metadata)
             if media is not None:
@@ -247,8 +294,8 @@ class Mask():  # pylint:disable=too-few-public-methods
         if self._update_type != "output":
             queue.put("EOF")
 
-    def _input_frames(self, *args: Union[tuple, Tuple["EventQueue"]]) -> None:
-        """ Input frames to the Extractor plugin inside a thread
+    def _input_frames(self, *args: tuple | tuple[EventQueue]) -> None:
+        """Input frames to the Extractor plugin inside a thread
 
         Parameters
         ----------
@@ -275,11 +322,15 @@ class Mask():  # pylint:disable=too-few-public-methods
             # To keep face indexes correct/cover off where only one face in an image is missing a
             # mask where there are multiple faces we process all faces again for any frames which
             # have missing masks.
-            if all(self._check_for_missing(frame, idx, alignment)
-                   for idx, alignment in enumerate(faces_in_frame)):
+            if all(
+                self._check_for_missing(frame, idx, alignment)
+                for idx, alignment in enumerate(faces_in_frame)
+            ):
                 continue
 
-            detected_faces = [self._get_detected_face(alignment) for alignment in faces_in_frame]
+            detected_faces = [
+                self._get_detected_face(alignment) for alignment in faces_in_frame
+            ]
             if self._update_type == "output":
                 for idx, detected_face in enumerate(detected_faces):
                     detected_face.image = image
@@ -290,8 +341,10 @@ class Mask():  # pylint:disable=too-few-public-methods
         if self._update_type != "output":
             queue.put("EOF")
 
-    def _check_for_missing(self, frame: str, idx: int, alignment: "AlignmentFileDict") -> bool:
-        """ Check if the alignment is missing the requested mask_type
+    def _check_for_missing(
+        self, frame: str, idx: int, alignment: AlignmentFileDict
+    ) -> bool:
+        """Check if the alignment is missing the requested mask_type
 
         Parameters
         ----------
@@ -308,15 +361,17 @@ class Mask():  # pylint:disable=too-few-public-methods
             ``True`` if the update_type is "missing" and the mask does not exist in the alignments
             file otherwise ``False``
         """
-        retval = (self._update_type == "missing" and
-                  alignment.get("mask", None) is not None and
-                  alignment["mask"].get(self._mask_type, None) is not None)
+        retval = (
+            self._update_type == "missing"
+            and alignment.get("mask", None) is not None
+            and alignment["mask"].get(self._mask_type, None) is not None
+        )
         if retval:
             logger.debug("Mask pre-exists for face: '%s' - %s", frame, idx)
         return retval
 
-    def _get_output_suffix(self, arguments: "Namespace") -> str:
-        """ The filename suffix, based on selected output options.
+    def _get_output_suffix(self, arguments: Namespace) -> str:
+        """The filename suffix, based on selected output options.
 
         Parameters
         ----------
@@ -334,8 +389,8 @@ class Mask():  # pylint:disable=too-few-public-methods
         return sfx
 
     @staticmethod
-    def _get_detected_face(alignment: "AlignmentFileDict") -> DetectedFace:
-        """ Convert an alignment dict item to a detected_face object
+    def _get_detected_face(alignment: AlignmentFileDict) -> DetectedFace:
+        """Convert an alignment dict item to a detected_face object
 
         Parameters
         ----------
@@ -352,9 +407,11 @@ class Mask():  # pylint:disable=too-few-public-methods
         return detected_face
 
     def process(self) -> None:
-        """ The entry point for the Mask tool from :file:`lib.tools.cli`. Runs the Mask process """
+        """The entry point for the Mask tool from :file:`lib.tools.cli`. Runs the Mask process"""
         logger.debug("Starting masker process")
-        updater = getattr(self, f"_update_{'faces' if self._input_is_faces else 'frames'}")
+        updater = getattr(
+            self, f"_update_{'faces' if self._input_is_faces else 'frames'}"
+        )
         if self._update_type != "output":
             assert self._extractor is not None
             if self._input_is_faces:
@@ -374,18 +431,25 @@ class Mask():  # pylint:disable=too-few-public-methods
             self._saver.close()
 
         if self._counts["skip"] != 0:
-            logger.warning("%s face(s) skipped due to not existing in the alignments file",
-                           self._counts["skip"])
+            logger.warning(
+                "%s face(s) skipped due to not existing in the alignments file",
+                self._counts["skip"],
+            )
         if self._update_type != "output":
             if self._counts["update"] == 0:
-                logger.warning("No masks were updated of the %s faces seen", self._counts["face"])
+                logger.warning(
+                    "No masks were updated of the %s faces seen", self._counts["face"]
+                )
             else:
-                logger.info("Updated masks for %s faces of %s",
-                            self._counts["update"], self._counts["face"])
+                logger.info(
+                    "Updated masks for %s faces of %s",
+                    self._counts["update"],
+                    self._counts["face"],
+                )
         logger.debug("Completed masker process")
 
     def _update_faces(self, extractor_output: ExtractMedia) -> None:
-        """ Update alignments for the mask if the input type is a faces folder
+        """Update alignments for the mask if the input type is a faces folder
 
         If an output location has been indicated, then puts the mask preview to the save queue
 
@@ -398,21 +462,27 @@ class Mask():  # pylint:disable=too-few-public-methods
         for face in extractor_output.detected_faces:
             frame_name = extractor_output.frame_metadata["source_filename"]
             face_index = extractor_output.frame_metadata["face_index"]
-            logger.trace("Saving face: (frame: %s, face index: %s)",  # type: ignore
-                         frame_name, face_index)
+            logger.trace(
+                "Saving face: (frame: %s, face index: %s)",  # type: ignore
+                frame_name,
+                face_index,
+            )
 
             self._alignments.update_face(frame_name, face_index, face.to_alignment())
-            metadata: "PNGHeaderDict" = dict(alignments=face.to_png_meta(),
-                                             source=extractor_output.frame_metadata)
-            self._faces_saver.save(extractor_output.filename,
-                                   encode_image(extractor_output.image, ".png", metadata=metadata))
+            metadata: PNGHeaderDict = dict(
+                alignments=face.to_png_meta(), source=extractor_output.frame_metadata
+            )
+            self._faces_saver.save(
+                extractor_output.filename,
+                encode_image(extractor_output.image, ".png", metadata=metadata),
+            )
 
             if self._saver is not None:
                 face.image = extractor_output.image
                 self._save(frame_name, face_index, face)
 
     def _update_frames(self, extractor_output: ExtractMedia) -> None:
-        """ Update alignments for the mask if the input type is a frames folder or video
+        """Update alignments for the mask if the input type is a frames folder or video
 
         If an output location has been indicated, then puts the mask preview to the save queue
 
@@ -429,7 +499,7 @@ class Mask():  # pylint:disable=too-few-public-methods
                 self._save(frame, idx, face)
 
     def _save(self, frame: str, idx: int, detected_face: DetectedFace) -> None:
-        """ Build the mask preview image and save
+        """Build the mask preview image and save
 
         Parameters
         ----------
@@ -446,10 +516,15 @@ class Mask():  # pylint:disable=too-few-public-methods
         else:
             mask_types = [self._mask_type]
 
-        if detected_face.mask is None or not any(mask in detected_face.mask
-                                                 for mask in mask_types):
-            logger.warning("Mask type '%s' does not exist for frame '%s' index %s. Skipping",
-                           self._mask_type, frame, idx)
+        if detected_face.mask is None or not any(
+            mask in detected_face.mask for mask in mask_types
+        ):
+            logger.warning(
+                "Mask type '%s' does not exist for frame '%s' index %s. Skipping",
+                self._mask_type,
+                frame,
+                idx,
+            )
             return
 
         for mask_type in mask_types:
@@ -458,13 +533,14 @@ class Mask():  # pylint:disable=too-few-public-methods
                 continue
             filename = os.path.join(
                 self._saver.location,
-                f"{os.path.splitext(frame)[0]}_{idx}_{mask_type}_{self._output['suffix']}")
+                f"{os.path.splitext(frame)[0]}_{idx}_{mask_type}_{self._output['suffix']}",
+            )
             image = self._create_image(detected_face, mask_type)
             logger.trace("filename: '%s', image_shape: %s", filename, image.shape)  # type: ignore
             self._saver.save(filename, image)
 
     def _create_image(self, detected_face: DetectedFace, mask_type: str) -> np.ndarray:
-        """ Create a mask preview image for saving out to disk
+        """Create a mask preview image for saving out to disk
 
         Parameters
         ----------
@@ -486,28 +562,41 @@ class Mask():  # pylint:disable=too-few-public-methods
         mask.set_blur_and_threshold(**self._output["opts"])
         if not self._output["full_frame"] or self._input_is_faces:
             if self._input_is_faces:
-                face = AlignedFace(detected_face.landmarks_xy,
-                                   image=detected_face.image,
-                                   centering=mask.stored_centering,
-                                   size=detected_face.image.shape[0],
-                                   is_aligned=True).face
+                face = AlignedFace(
+                    detected_face.landmarks_xy,
+                    image=detected_face.image,
+                    centering=mask.stored_centering,
+                    size=detected_face.image.shape[0],
+                    is_aligned=True,
+                ).face
             else:
-                centering: "CenteringType" = ("legacy" if self._alignments.version == 1.0
-                                              else mask.stored_centering)
-                detected_face.load_aligned(detected_face.image, centering=centering, force=True)
+                centering: CenteringType = (
+                    "legacy"
+                    if self._alignments.version == 1.0
+                    else mask.stored_centering
+                )
+                detected_face.load_aligned(
+                    detected_face.image, centering=centering, force=True
+                )
                 face = detected_face.aligned.face
             assert face is not None
-            imask = cv2.resize(detected_face.mask[mask_type].mask,
-                               (face.shape[1], face.shape[0]),
-                               interpolation=cv2.INTER_CUBIC)[..., None]
+            imask = cv2.resize(
+                detected_face.mask[mask_type].mask,
+                (face.shape[1], face.shape[0]),
+                interpolation=cv2.INTER_CUBIC,
+            )[..., None]
         else:
-            face = np.array(detected_face.image)  # cv2 fails if this comes as imageio.core.Array
+            face = np.array(
+                detected_face.image
+            )  # cv2 fails if this comes as imageio.core.Array
             imask = mask.get_full_frame_mask(face.shape[1], face.shape[0])
             imask = np.expand_dims(imask, -1)
 
         height, width = face.shape[:2]
         if self._output["type"] == "combined":
-            masked = (face.astype("float32") * imask.astype("float32") / 255.).astype("uint8")
+            masked = (face.astype("float32") * imask.astype("float32") / 255.0).astype(
+                "uint8"
+            )
             imask = np.tile(imask, 3)
             for img in (face, masked, imask):
                 cv2.rectangle(img, (0, 0), (width - 1, height - 1), (255, 255, 255), 1)

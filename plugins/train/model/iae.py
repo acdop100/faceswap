@@ -1,28 +1,38 @@
 #!/usr/bin/env python3
 """ Improved autoencoder for faceswap """
+from __future__ import annotations
 
-from lib.model.nn_blocks import Conv2DOutput, Conv2DBlock, UpscaleBlock
+from ._base import KerasModel
+from ._base import ModelBase
+from lib.model.nn_blocks import Conv2DBlock
+from lib.model.nn_blocks import Conv2DOutput
+from lib.model.nn_blocks import UpscaleBlock
 from lib.utils import get_backend
-
-from ._base import ModelBase, KerasModel
 
 if get_backend() == "amd":
     from keras.layers import Concatenate, Dense, Flatten, Input, Reshape
 
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.layers import Concatenate, Dense, Flatten, Input, Reshape  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.layers import (
+        Concatenate,
+        Dense,
+        Flatten,
+        Input,
+        Reshape,
+    )  # noqa pylint:disable=import-error,no-name-in-module
 
 
 class Model(ModelBase):
-    """ Improved Autoencoder Model """
+    """Improved Autoencoder Model"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_shape = (64, 64, 3)
         self.encoder_dim = 1024
 
     def build_model(self, inputs):
-        """ Build the IAE Model """
+        """Build the IAE Model"""
         encoder = self.encoder()
         decoder = self.decoder()
         inter_a = self.intermediate("a")
@@ -32,14 +42,16 @@ class Model(ModelBase):
         encoder_a = encoder(inputs[0])
         encoder_b = encoder(inputs[1])
 
-        outputs = [decoder(Concatenate()([inter_a(encoder_a), inter_both(encoder_a)])),
-                   decoder(Concatenate()([inter_b(encoder_b), inter_both(encoder_b)]))]
+        outputs = [
+            decoder(Concatenate()([inter_a(encoder_a), inter_both(encoder_a)])),
+            decoder(Concatenate()([inter_b(encoder_b), inter_both(encoder_b)])),
+        ]
 
         autoencoder = KerasModel(inputs, outputs, name=self.model_name)
         return autoencoder
 
     def encoder(self):
-        """ Encoder Network """
+        """Encoder Network"""
         input_ = Input(shape=self.input_shape)
         var_x = input_
         var_x = Conv2DBlock(128, activation="leakyrelu")(var_x)
@@ -50,15 +62,15 @@ class Model(ModelBase):
         return KerasModel(input_, var_x, name="encoder")
 
     def intermediate(self, side):
-        """ Intermediate Network """
-        input_ = Input(shape=(4 * 4 * 1024, ))
+        """Intermediate Network"""
+        input_ = Input(shape=(4 * 4 * 1024,))
         var_x = Dense(self.encoder_dim)(input_)
-        var_x = Dense(4 * 4 * int(self.encoder_dim/2))(var_x)
-        var_x = Reshape((4, 4, int(self.encoder_dim/2)))(var_x)
+        var_x = Dense(4 * 4 * int(self.encoder_dim / 2))(var_x)
+        var_x = Reshape((4, 4, int(self.encoder_dim / 2)))(var_x)
         return KerasModel(input_, var_x, name=f"inter_{side}")
 
     def decoder(self):
-        """ Decoder Network """
+        """Decoder Network"""
         input_ = Input(shape=(4, 4, self.encoder_dim))
         var_x = input_
         var_x = UpscaleBlock(512, activation="leakyrelu")(var_x)
@@ -79,9 +91,11 @@ class Model(ModelBase):
         return KerasModel(input_, outputs=outputs, name="decoder")
 
     def _legacy_mapping(self):
-        """ The mapping of legacy separate model names to single model names """
-        return {f"{self.name}_encoder.h5": "encoder",
-                f"{self.name}_intermediate_A.h5": "inter_a",
-                f"{self.name}_intermediate_B.h5": "inter_b",
-                f"{self.name}_inter.h5": "inter_both",
-                f"{self.name}_decoder.h5": "decoder"}
+        """The mapping of legacy separate model names to single model names"""
+        return {
+            f"{self.name}_encoder.h5": "encoder",
+            f"{self.name}_intermediate_A.h5": "inter_a",
+            f"{self.name}_intermediate_B.h5": "inter_b",
+            f"{self.name}_inter.h5": "inter_both",
+            f"{self.name}_decoder.h5": "decoder",
+        }

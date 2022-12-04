@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """ Utils imported from Keras as their location changes between Tensorflow Keras and standard
 Keras. Also ensures testing consistency """
+from __future__ import annotations
+
 import inspect
 import sys
 
 import numpy as np
 
 
-def generate_test_data(num_train=1000, num_test=500, input_shape=(10,),
-                       output_shape=(2,),
-                       classification=True, num_classes=2):
+def generate_test_data(
+    num_train=1000,
+    num_test=500,
+    input_shape=(10,),
+    output_shape=(2,),
+    classification=True,
+    num_classes=2,
+):
     """Generates test data to train a model on. classification=True overrides output_shape (i.e.
     output_shape is set to (1,)) and the output consists in integers in [0, num_classes-1].
 
@@ -29,10 +36,13 @@ def generate_test_data(num_train=1000, num_test=500, input_shape=(10,),
             var_x[i] = np.random.normal(loc=y_loc[i], scale=0.7, size=input_shape)
             var_y[i] = np.random.normal(loc=y_loc[i], scale=0.7, size=output_shape)
 
-    return (var_x[:num_train], var_y[:num_train]), (var_x[num_train:], var_y[num_train:])
+    return (var_x[:num_train], var_y[:num_train]), (
+        var_x[num_train:],
+        var_y[num_train:],
+    )
 
 
-def to_categorical(var_y, num_classes=None, dtype='float32'):
+def to_categorical(var_y, num_classes=None, dtype="float32"):
     """Converts a class vector (integers) to binary class matrix.
     E.g. for use with categorical_crossentropy.
 
@@ -64,7 +74,7 @@ def to_categorical(var_y, num_classes=None, dtype='float32'):
     >>>        [ 0.,  0.,  1.],
     >>>        [ 1.,  0.,  0.]], dtype=float32)
     """
-    var_y = np.array(var_y, dtype='int')
+    var_y = np.array(var_y, dtype="int")
     input_shape = var_y.shape
     if input_shape and input_shape[-1] == 1 and len(input_shape) > 1:
         input_shape = tuple(input_shape[:-1])
@@ -101,25 +111,15 @@ def has_arg(func, name, accept_all=False):
     bool
         Whether `func` accepts a `name` keyword argument.
     """
-    if sys.version_info < (3,):
-        arg_spec = inspect.getargspec(func)
-        if accept_all and arg_spec.keywords is not None:
-            return True
-        return (name in arg_spec.args)
-    elif sys.version_info < (3, 3):
-        arg_spec = inspect.getfullargspec(func)
-        if accept_all and arg_spec.varkw is not None:
-            return True
-        return (name in arg_spec.args or
-                name in arg_spec.kwonlyargs)
-    else:
-        signature = inspect.signature(func)
-        parameter = signature.parameters.get(name)
-        if parameter is None:
-            if accept_all:
-                for param in signature.parameters.values():
-                    if param.kind == inspect.Parameter.VAR_KEYWORD:
-                        return True
-            return False
-        return (parameter.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                   inspect.Parameter.KEYWORD_ONLY))
+    signature = inspect.signature(func)
+    parameter = signature.parameters.get(name)
+    if parameter is None:
+        if accept_all:
+            for param in signature.parameters.values():
+                if param.kind == inspect.Parameter.VAR_KEYWORD:
+                    return True
+        return False
+    return parameter.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    )

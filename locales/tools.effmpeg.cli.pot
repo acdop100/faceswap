@@ -112,4 +112,3 @@ msgstr ""
 #: tools/effmpeg/cli.py:188
 msgid "Increases output verbosity. If both quiet and verbose are set, verbose will override quiet."
 msgstr ""
-

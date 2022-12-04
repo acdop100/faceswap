@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = "Options for outputting converted frames to an animated gif."
@@ -70,7 +71,7 @@ _DEFAULTS = dict(
     palettesize=dict(
         default="256",
         info="The number of colors to quantize the image to. Is rounded to the nearest power of "
-             "two.",
+        "two.",
         datatype=str,
         rounding=None,
         min_max=None,
@@ -82,7 +83,7 @@ _DEFAULTS = dict(
     subrectangles=dict(
         default=False,
         info="If True, will try and optimize the GIF by storing only the rectangular parts of "
-             "each frame that change with respect to the previous.",
+        "each frame that change with respect to the previous.",
         datatype=bool,
         rounding=None,
         min_max=None,

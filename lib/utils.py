@@ -1,5 +1,6 @@
 #!/usr/bin python3
 """ Utilities available across all scripts """
+from __future__ import annotations
 
 import json
 import logging
@@ -9,40 +10,59 @@ import tkinter as tk
 import urllib
 import warnings
 import zipfile
-
-from re import finditer
 from multiprocessing import current_process
-from socket import timeout as socket_timeout, error as socket_error
+from re import finditer
+from socket import error as socket_error
+from socket import timeout as socket_timeout
 from threading import get_ident
 from time import time
-from typing import cast, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import cast
+from typing import Dict
+from typing import get_args
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Union
 
 import numpy as np
 from tqdm import tqdm
-
-if sys.version_info < (3, 8):
-    from typing_extensions import get_args, Literal
-else:
-    from typing import get_args, Literal
 
 if TYPE_CHECKING:
     from http.client import HTTPResponse
 
 # Global variables
 _image_extensions = [  # pylint:disable=invalid-name
-    ".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff"]
+    ".bmp",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".tif",
+    ".tiff",
+]
 _video_extensions = [  # pylint:disable=invalid-name
-    ".avi", ".flv", ".mkv", ".mov", ".mp4", ".mpeg", ".mpg", ".webm", ".wmv",
-    ".ts", ".vob"]
-_TF_VERS: Optional[float] = None
+    ".avi",
+    ".flv",
+    ".mkv",
+    ".mov",
+    ".mp4",
+    ".mpeg",
+    ".mpg",
+    ".webm",
+    ".wmv",
+    ".ts",
+    ".vob",
+]
+_TF_VERS: float | None = None
 ValidBackends = Literal["amd", "nvidia", "cpu", "apple_silicon"]
 
 
-class _Backend():  # pylint:disable=too-few-public-methods
-    """ Return the backend from config/.faceswap of from the `FACESWAP_BACKEND` Environment
+class _Backend:  # pylint:disable=too-few-public-methods
+    """Return the backend from config/.faceswap of from the `FACESWAP_BACKEND` Environment
     Variable.
 
-    If file doesn't exist and a variable hasn't been set, create the config file. """
+    If file doesn't exist and a variable hasn't been set, create the config file."""
+
     def __init__(self) -> None:
         self._backends = {"1": "amd", "2": "cpu", "3": "nvidia", "4": "apple_silicon"}
         self._valid_backends = list(self._backends.values())
@@ -51,7 +71,7 @@ class _Backend():  # pylint:disable=too-few-public-methods
 
     @classmethod
     def _get_config_file(cls) -> str:
-        """ Obtain the location of the main Faceswap configuration file.
+        """Obtain the location of the main Faceswap configuration file.
 
         Returns
         -------
@@ -63,7 +83,7 @@ class _Backend():  # pylint:disable=too-few-public-methods
         return config_file
 
     def _get_backend(self) -> ValidBackends:
-        """ Return the backend from either the `FACESWAP_BACKEND` Environment Variable or from
+        """Return the backend from either the `FACESWAP_BACKEND` Environment Variable or from
         the :file:`config/.faceswap` configuration file. If neither of these exist, prompt the user
         to select a backend.
 
@@ -75,9 +95,12 @@ class _Backend():  # pylint:disable=too-few-public-methods
         # Check if environment variable is set, if so use that
         if "FACESWAP_BACKEND" in os.environ:
             fs_backend = cast(ValidBackends, os.environ["FACESWAP_BACKEND"].lower())
-            assert fs_backend in get_args(ValidBackends), (
-                f"Faceswap backend must be one of {get_args(ValidBackends)}")
-            print(f"Setting Faceswap backend from environment variable to {fs_backend.upper()}")
+            assert fs_backend in get_args(
+                ValidBackends
+            ), f"Faceswap backend must be one of {get_args(ValidBackends)}"
+            print(
+                f"Setting Faceswap backend from environment variable to {fs_backend.upper()}"
+            )
             return fs_backend
         # Intercept for sphinx docs build
         if sys.argv[0].endswith("sphinx-build"):
@@ -86,7 +109,7 @@ class _Backend():  # pylint:disable=too-few-public-methods
             self._configure_backend()
         while True:
             try:
-                with open(self._config_file, "r", encoding="utf8") as cnf:
+                with open(self._config_file, encoding="utf8") as cnf:
                     config = json.load(cnf)
                 break
             except json.decoder.JSONDecodeError:
@@ -100,7 +123,7 @@ class _Backend():  # pylint:disable=too-few-public-methods
         return fs_backend
 
     def _configure_backend(self) -> ValidBackends:
-        """ Get user input to select the backend that Faceswap should use.
+        """Get user input to select the backend that Faceswap should use.
 
         Returns
         -------
@@ -126,7 +149,7 @@ _FS_BACKEND: ValidBackends = _Backend().backend
 
 
 def get_backend() -> ValidBackends:
-    """ Get the backend that Faceswap is currently configured to use.
+    """Get the backend that Faceswap is currently configured to use.
 
     Returns
     -------
@@ -137,7 +160,7 @@ def get_backend() -> ValidBackends:
 
 
 def set_backend(backend: str) -> None:
-    """ Override the configured backend with the given backend.
+    """Override the configured backend with the given backend.
 
     Parameters
     ----------
@@ -150,7 +173,7 @@ def set_backend(backend: str) -> None:
 
 
 def get_tf_version() -> float:
-    """ Obtain the major.minor version of currently installed Tensorflow.
+    """Obtain the major.minor version of currently installed Tensorflow.
 
     Returns
     -------
@@ -160,12 +183,15 @@ def get_tf_version() -> float:
     global _TF_VERS  # pylint:disable=global-statement
     if _TF_VERS is None:
         import tensorflow as tf  # pylint:disable=import-outside-toplevel
-        _TF_VERS = float(".".join(tf.__version__.split(".")[:2]))  # pylint:disable=no-member
+
+        _TF_VERS = float(
+            ".".join(tf.__version__.split(".")[:2])
+        )  # pylint:disable=no-member
     return _TF_VERS
 
 
 def get_folder(path: str, make_folder: bool = True) -> str:
-    """ Return a path to a folder, creating it if it doesn't exist
+    """Return a path to a folder, creating it if it doesn't exist
 
     Parameters
     ----------
@@ -191,8 +217,8 @@ def get_folder(path: str, make_folder: bool = True) -> str:
     return path
 
 
-def get_image_paths(directory: str, extension: Optional[str] = None) -> List[str]:
-    """ Obtain a list of full paths that reside within a folder.
+def get_image_paths(directory: str, extension: str | None = None) -> list[str]:
+    """Obtain a list of full paths that reside within a folder.
 
     Parameters
     ----------
@@ -228,7 +254,7 @@ def get_image_paths(directory: str, extension: Optional[str] = None) -> List[str
 
 
 def get_dpi() -> float:
-    """ Obtain the DPI of the running screen.
+    """Obtain the DPI of the running screen.
 
     Returns
     -------
@@ -236,12 +262,12 @@ def get_dpi() -> float:
         The obtain dots per inch of the running monitor
     """
     root = tk.Tk()
-    dpi = root.winfo_fpixels('1i')
+    dpi = root.winfo_fpixels("1i")
     return float(dpi)
 
 
 def convert_to_secs(*args: int) -> int:
-    """ Convert a time to seconds.
+    """Convert a time to seconds.
 
     Parameters
     ----------
@@ -268,8 +294,8 @@ def convert_to_secs(*args: int) -> int:
     return retval
 
 
-def full_path_split(path: str) -> List[str]:
-    """ Split a full path to a location into all of it's separate components.
+def full_path_split(path: str) -> list[str]:
+    """Split a full path to a location into all of it's separate components.
 
     Parameters
     ----------
@@ -288,10 +314,10 @@ def full_path_split(path: str) -> List[str]:
     >>> ["foo", "baz", "bar"]
     """
     logger = logging.getLogger(__name__)  # pylint:disable=invalid-name
-    allparts: List[str] = []
+    allparts: list[str] = []
     while True:
         parts = os.path.split(path)
-        if parts[0] == path:   # sentinel for absolute paths
+        if parts[0] == path:  # sentinel for absolute paths
             allparts.insert(0, parts[0])
             break
         if parts[1] == path:  # sentinel for relative paths
@@ -304,7 +330,7 @@ def full_path_split(path: str) -> List[str]:
 
 
 def set_system_verbosity(log_level: str):
-    """ Set the verbosity level of tensorflow and suppresses future and deprecation warnings from
+    """Set the verbosity level of tensorflow and suppresses future and deprecation warnings from
     any modules
 
     Parameters
@@ -322,17 +348,18 @@ def set_system_verbosity(log_level: str):
 
     logger = logging.getLogger(__name__)  # pylint:disable=invalid-name
     from lib.logger import get_loglevel  # pylint:disable=import-outside-toplevel
+
     numeric_level = get_loglevel(log_level)
     log_level = "3" if numeric_level > 15 else "0"
     logger.debug("System Verbosity level: %s", log_level)
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = log_level
-    if log_level != '0':
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = log_level
+    if log_level != "0":
         for warncat in (FutureWarning, DeprecationWarning, UserWarning):
-            warnings.simplefilter(action='ignore', category=warncat)
+            warnings.simplefilter(action="ignore", category=warncat)
 
 
-def deprecation_warning(function: str, additional_info: Optional[str] = None) -> None:
-    """ Log at warning level that a function will be removed in a future update.
+def deprecation_warning(function: str, additional_info: str | None = None) -> None:
+    """Log at warning level that a function will be removed in a future update.
 
     Parameters
     ----------
@@ -349,8 +376,8 @@ def deprecation_warning(function: str, additional_info: Optional[str] = None) ->
     logger.warning(msg)
 
 
-def camel_case_split(identifier: str) -> List[str]:
-    """ Split a camel case name
+def camel_case_split(identifier: str) -> list[str]:
+    """Split a camel case name
 
     Parameters
     ----------
@@ -368,13 +395,13 @@ def camel_case_split(identifier: str) -> List[str]:
     https://stackoverflow.com/questions/29916065
     """
     matches = finditer(
-        ".+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)",
-        identifier)
+        ".+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)", identifier
+    )
     return [m.group(0) for m in matches]
 
 
 def safe_shutdown(got_error: bool = False) -> None:
-    """ Close all tracked queues and threads in event of crash or on shut down.
+    """Close all tracked queues and threads in event of crash or on shut down.
 
     Parameters
     ----------
@@ -384,25 +411,29 @@ def safe_shutdown(got_error: bool = False) -> None:
     """
     logger = logging.getLogger(__name__)  # pylint:disable=invalid-name
     logger.debug("Safely shutting down")
-    from lib.queue_manager import queue_manager  # pylint:disable=import-outside-toplevel
+    from lib.queue_manager import (
+        queue_manager,
+    )  # pylint:disable=import-outside-toplevel
+
     queue_manager.terminate_queues()
     logger.debug("Cleanup complete. Shutting down queue manager and exiting")
     sys.exit(1 if got_error else 0)
 
 
 class FaceswapError(Exception):
-    """ Faceswap Error for handling specific errors with useful information.
+    """Faceswap Error for handling specific errors with useful information.
 
     Raises
     ------
     FaceswapError
         on a captured error
     """
+
     pass  # pylint:disable=unnecessary-pass
 
 
-class GetModel():  # pylint:disable=too-few-public-methods
-    """ Check for models in the cache path.
+class GetModel:  # pylint:disable=too-few-public-methods
+    """Check for models in the cache path.
 
     If available, return the path, if not available, get, unzip and install model
 
@@ -426,21 +457,25 @@ class GetModel():  # pylint:disable=too-few-public-methods
     ,"resnet_ssd_v1.prototext"]`
     """
 
-    def __init__(self, model_filename: Union[str, List[str]], git_model_id: int) -> None:
+    def __init__(self, model_filename: str | list[str], git_model_id: int) -> None:
         self.logger = logging.getLogger(__name__)
         if not isinstance(model_filename, list):
             model_filename = [model_filename]
         self._model_filename = model_filename
-        self._cache_dir = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), ".fs_cache")
+        self._cache_dir = os.path.join(
+            os.path.abspath(os.path.dirname(sys.argv[0])), ".fs_cache"
+        )
         self._git_model_id = git_model_id
-        self._url_base = "https://github.com/deepfakes-models/faceswap-models/releases/download"
+        self._url_base = (
+            "https://github.com/deepfakes-models/faceswap-models/releases/download"
+        )
         self._chunk_size = 1024  # Chunk size for downloading and unzipping
         self._retries = 6
         self._get()
 
     @property
     def _model_full_name(self) -> str:
-        """ str: The full model name from the filename(s). """
+        """str: The full model name from the filename(s)."""
         common_prefix = os.path.commonprefix(self._model_filename)
         retval = os.path.splitext(common_prefix)[0]
         self.logger.trace(retval)  # type: ignore
@@ -448,36 +483,36 @@ class GetModel():  # pylint:disable=too-few-public-methods
 
     @property
     def _model_name(self) -> str:
-        """ str: The model name from the model's full name. """
-        retval = self._model_full_name[:self._model_full_name.rfind("_")]
+        """str: The model name from the model's full name."""
+        retval = self._model_full_name[: self._model_full_name.rfind("_")]
         self.logger.trace(retval)  # type: ignore
         return retval
 
     @property
     def _model_version(self) -> int:
-        """ int: The model's version number from the model full name. """
-        retval = int(self._model_full_name[self._model_full_name.rfind("_") + 2:])
+        """int: The model's version number from the model full name."""
+        retval = int(self._model_full_name[self._model_full_name.rfind("_") + 2 :])
         self.logger.trace(retval)  # type: ignore
         return retval
 
     @property
-    def model_path(self) -> Union[str, List[str]]:
-        """ str or list: The model path(s) in the cache folder. """
+    def model_path(self) -> str | list[str]:
+        """str or list: The model path(s) in the cache folder."""
         paths = [os.path.join(self._cache_dir, fname) for fname in self._model_filename]
-        retval: Union[str, List[str]] = paths[0] if len(paths) == 1 else paths
+        retval: str | list[str] = paths[0] if len(paths) == 1 else paths
         self.logger.trace(retval)  # type: ignore
         return retval
 
     @property
     def _model_zip_path(self) -> str:
-        """ str: The full path to downloaded zip file. """
+        """str: The full path to downloaded zip file."""
         retval = os.path.join(self._cache_dir, f"{self._model_full_name}.zip")
         self.logger.trace(retval)  # type: ignore
         return retval
 
     @property
     def _model_exists(self) -> bool:
-        """ bool: ``True`` if the model exists in the cache folder otherwise ``False``. """
+        """bool: ``True`` if the model exists in the cache folder otherwise ``False``."""
         if isinstance(self.model_path, list):
             retval = all(os.path.exists(pth) for pth in self.model_path)
         else:
@@ -487,7 +522,7 @@ class GetModel():  # pylint:disable=too-few-public-methods
 
     @property
     def _url_download(self) -> str:
-        """ strL Base download URL for models. """
+        """strL Base download URL for models."""
         tag = f"v{self._git_model_id}.{self._model_version}"
         retval = f"{self._url_base}/{tag}/{self._model_full_name}.zip"
         self.logger.trace("Download url: %s", retval)  # type: ignore
@@ -495,15 +530,15 @@ class GetModel():  # pylint:disable=too-few-public-methods
 
     @property
     def _url_partial_size(self) -> int:
-        """ int: How many bytes have already been downloaded. """
+        """int: How many bytes have already been downloaded."""
         zip_file = self._model_zip_path
         retval = os.path.getsize(zip_file) if os.path.exists(zip_file) else 0
         self.logger.trace(retval)  # type: ignore
         return retval
 
     def _get(self) -> None:
-        """ Check the model exists, if not, download the model, unzip it and place it in the
-        model's cache folder. """
+        """Check the model exists, if not, download the model, unzip it and place it in the
+        model's cache folder."""
         if self._model_exists:
             self.logger.debug("Model exists: %s", self.model_path)
             return
@@ -512,8 +547,10 @@ class GetModel():  # pylint:disable=too-few-public-methods
         os.remove(self._model_zip_path)
 
     def _download_model(self) -> None:
-        """ Download the model zip from github to the cache folder. """
-        self.logger.info("Downloading model: '%s' from: %s", self._model_name, self._url_download)
+        """Download the model zip from github to the cache folder."""
+        self.logger.info(
+            "Downloading model: '%s' from: %s", self._model_name, self._url_download
+        )
         for attempt in range(self._retries):
             try:
                 downloaded_size = self._url_partial_size
@@ -525,22 +562,39 @@ class GetModel():  # pylint:disable=too-few-public-methods
                     self.logger.debug("Return Code: %s", response.getcode())
                     self._write_zipfile(response, downloaded_size)
                 break
-            except (socket_error, socket_timeout,
-                    urllib.error.HTTPError, urllib.error.URLError) as err:
+            except (
+                socket_error,
+                socket_timeout,
+                urllib.error.HTTPError,
+                urllib.error.URLError,
+            ) as err:
                 if attempt + 1 < self._retries:
-                    self.logger.warning("Error downloading model (%s). Retrying %s of %s...",
-                                        str(err), attempt + 2, self._retries)
+                    self.logger.warning(
+                        "Error downloading model (%s). Retrying %s of %s...",
+                        str(err),
+                        attempt + 2,
+                        self._retries,
+                    )
                 else:
-                    self.logger.error("Failed to download model. Exiting. (Error: '%s', URL: "
-                                      "'%s')", str(err), self._url_download)
-                    self.logger.info("You can try running again to resume the download.")
-                    self.logger.info("Alternatively, you can manually download the model from: %s "
-                                     "and unzip the contents to: %s",
-                                     self._url_download, self._cache_dir)
+                    self.logger.error(
+                        "Failed to download model. Exiting. (Error: '%s', URL: "
+                        "'%s')",
+                        str(err),
+                        self._url_download,
+                    )
+                    self.logger.info(
+                        "You can try running again to resume the download."
+                    )
+                    self.logger.info(
+                        "Alternatively, you can manually download the model from: %s "
+                        "and unzip the contents to: %s",
+                        self._url_download,
+                        self._cache_dir,
+                    )
                     sys.exit(1)
 
-    def _write_zipfile(self, response: "HTTPResponse", downloaded_size: int) -> None:
-        """ Write the model zip file to disk.
+    def _write_zipfile(self, response: HTTPResponse, downloaded_size: int) -> None:
+        """Write the model zip file to disk.
 
         Parameters
         ----------
@@ -557,11 +611,13 @@ class GetModel():  # pylint:disable=too-few-public-methods
             return
         write_type = "wb" if downloaded_size == 0 else "ab"
         with open(self._model_zip_path, write_type) as out_file:
-            pbar = tqdm(desc="Downloading",
-                        unit="B",
-                        total=length,
-                        unit_scale=True,
-                        unit_divisor=1024)
+            pbar = tqdm(
+                desc="Downloading",
+                unit="B",
+                total=length,
+                unit_scale=True,
+                unit_divisor=1024,
+            )
             if downloaded_size != 0:
                 pbar.update(downloaded_size)
             while True:
@@ -573,7 +629,7 @@ class GetModel():  # pylint:disable=too-few-public-methods
             pbar.close()
 
     def _unzip_model(self) -> None:
-        """ Unzip the model file to the cache folder """
+        """Unzip the model file to the cache folder"""
         self.logger.info("Extracting: '%s'", self._model_name)
         try:
             with zipfile.ZipFile(self._model_zip_path, "r") as zip_file:
@@ -583,7 +639,7 @@ class GetModel():  # pylint:disable=too-few-public-methods
             sys.exit(1)
 
     def _write_model(self, zip_file: zipfile.ZipFile) -> None:
-        """ Extract files from zip file and write, with progress bar.
+        """Extract files from zip file and write, with progress bar.
 
         Parameters
         ----------
@@ -593,14 +649,18 @@ class GetModel():  # pylint:disable=too-few-public-methods
         length = sum(f.file_size for f in zip_file.infolist())
         fnames = zip_file.namelist()
         self.logger.debug("Zipfile: Filenames: %s, Total Size: %s", fnames, length)
-        pbar = tqdm(desc="Decompressing",
-                    unit="B",
-                    total=length,
-                    unit_scale=True,
-                    unit_divisor=1024)
+        pbar = tqdm(
+            desc="Decompressing",
+            unit="B",
+            total=length,
+            unit_scale=True,
+            unit_divisor=1024,
+        )
         for fname in fnames:
             out_fname = os.path.join(self._cache_dir, fname)
-            self.logger.debug("Extracting from: '%s' to '%s'", self._model_zip_path, out_fname)
+            self.logger.debug(
+                "Extracting from: '%s' to '%s'", self._model_zip_path, out_fname
+            )
             zipped = zip_file.open(fname)
             with open(out_fname, "wb") as out_file:
                 while True:
@@ -613,8 +673,8 @@ class GetModel():  # pylint:disable=too-few-public-methods
         pbar.close()
 
 
-class DebugTimes():
-    """ A simple tool to help debug timings.
+class DebugTimes:
+    """A simple tool to help debug timings.
 
     Parameters
     ----------
@@ -625,15 +685,17 @@ class DebugTimes():
     max: bool, Optional
         Display maximum time in summary stats. Default: ``True``
     """
-    def __init__(self,
-                 show_min: bool = True, show_mean: bool = True, show_max: bool = True) -> None:
-        self._times: Dict[str, List[float]] = {}
-        self._steps: Dict[str, float] = {}
+
+    def __init__(
+        self, show_min: bool = True, show_mean: bool = True, show_max: bool = True
+    ) -> None:
+        self._times: dict[str, list[float]] = {}
+        self._steps: dict[str, float] = {}
         self._interval = 1
         self._display = dict(min=show_min, mean=show_mean, max=show_max)
 
     def step_start(self, name: str, record: bool = True) -> None:
-        """ Start the timer for the given step name.
+        """Start the timer for the given step name.
 
         Parameters
         ----------
@@ -650,7 +712,7 @@ class DebugTimes():
         self._steps[storename] = time()
 
     def step_end(self, name: str, record: bool = True) -> None:
-        """ Stop the timer and record elapsed time  for the given step name.
+        """Stop the timer and record elapsed time  for the given step name.
 
         Parameters
         ----------
@@ -668,7 +730,7 @@ class DebugTimes():
 
     @classmethod
     def _format_column(cls, text: str, width: int) -> str:
-        """ Pad the given text to be aligned to the given width.
+        """Pad the given text to be aligned to the given width.
 
         Parameters
         ----------
@@ -685,7 +747,7 @@ class DebugTimes():
         return f"{text}{' ' * (width - len(text))}"
 
     def summary(self, decimal_places: int = 6, interval: int = 1) -> None:
-        """ Output a summary of step times.
+        """Output a summary of step times.
 
         Parameters
         ----------
@@ -705,11 +767,19 @@ class DebugTimes():
         separator = "-" * (name_col + items_col + time_col)
         print("")
         print(separator)
-        header = (f"{self._format_column('Step', name_col)}"
-                  f"{self._format_column('Count', items_col)}")
-        header += f"{self._format_column('Min', time_col)}" if self._display["min"] else ""
-        header += f"{self._format_column('Avg', time_col)}" if self._display["mean"] else ""
-        header += f"{self._format_column('Max', time_col)}" if self._display["max"] else ""
+        header = (
+            f"{self._format_column('Step', name_col)}"
+            f"{self._format_column('Count', items_col)}"
+        )
+        header += (
+            f"{self._format_column('Min', time_col)}" if self._display["min"] else ""
+        )
+        header += (
+            f"{self._format_column('Avg', time_col)}" if self._display["mean"] else ""
+        )
+        header += (
+            f"{self._format_column('Max', time_col)}" if self._display["max"] else ""
+        )
         print(header)
         print(separator)
         for key, val in self._times.items():

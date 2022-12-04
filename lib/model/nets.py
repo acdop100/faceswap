@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """ Ports of existing NN Architecture for use in faceswap.py """
+from __future__ import annotations
+
 import logging
-from typing import Optional, Tuple
+from typing import Optional
+from typing import Tuple
 
 from lib.utils import get_backend
 
@@ -11,16 +14,24 @@ if get_backend() == "amd":
     from plaidml.tile import Value as Tensor
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.layers import Concatenate, Conv2D, Input, MaxPool2D, ZeroPadding2D  # noqa pylint:disable=no-name-in-module,import-error
-    from tensorflow.keras.models import Model  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.layers import (
+        Concatenate,
+        Conv2D,
+        Input,
+        MaxPool2D,
+        ZeroPadding2D,
+    )  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.models import (
+        Model,
+    )  # noqa pylint:disable=no-name-in-module,import-error
     from tensorflow import Tensor
 
 
 logger = logging.getLogger(__name__)
 
 
-class _net():  # pylint:disable=too-few-public-methods
-    """ Base class for existing NeuralNet architecture
+class _net:  # pylint:disable=too-few-public-methods
+    """Base class for existing NeuralNet architecture
 
     Notes
     -----
@@ -31,18 +42,21 @@ class _net():  # pylint:disable=too-few-public-methods
     input_shape, Tuple, optional
         The input shape for the model. Default: ``None``
     """
-    def __init__(self,
-                 input_shape: Optional[Tuple[int, int, int]] = None) -> None:
-        logger.debug("Initializing: %s (input_shape: %s)", self.__class__.__name__, input_shape)
+
+    def __init__(self, input_shape: tuple[int, int, int] | None = None) -> None:
+        logger.debug(
+            "Initializing: %s (input_shape: %s)", self.__class__.__name__, input_shape
+        )
         self._input_shape = (None, None, 3) if input_shape is None else input_shape
         assert len(self._input_shape) == 3 and self._input_shape[-1] == 3, (
             "Input shape must be in the format (height, width, channels) and the number of "
-            f"channels must equal 3. Received: {self._input_shape}")
+            f"channels must equal 3. Received: {self._input_shape}"
+        )
         logger.debug("Initialized: %s", self.__class__.__name__)
 
 
 class AlexNet(_net):  # pylint:disable=too-few-public-methods
-    """ AlexNet ported from torchvision version.
+    """AlexNet ported from torchvision version.
 
     Notes
     -----
@@ -57,20 +71,23 @@ class AlexNet(_net):  # pylint:disable=too-few-public-methods
     input_shape, Tuple, optional
         The input shape for the model. Default: ``None``
     """
-    def __init__(self, input_shape: Optional[Tuple[int, int, int]] = None) -> None:
+
+    def __init__(self, input_shape: tuple[int, int, int] | None = None) -> None:
         super().__init__(input_shape)
         self._feature_indices = [0, 3, 6, 8, 10]  # For naming equivalent to PyTorch
         self._filters = [64, 192, 384, 256, 256]  # Filters at each block
 
     @classmethod
-    def _conv_block(cls,
-                    inputs: Tensor,
-                    padding: int,
-                    filters: int,
-                    kernel_size: int,
-                    strides: int,
-                    block_idx: int,
-                    max_pool: bool) -> Tensor:
+    def _conv_block(
+        cls,
+        inputs: Tensor,
+        padding: int,
+        filters: int,
+        kernel_size: int,
+        strides: int,
+        block_idx: int,
+        max_pool: bool,
+    ) -> Tensor:
         """
         The Convolutional block for AlexNet
 
@@ -101,16 +118,18 @@ class AlexNet(_net):  # pylint:disable=too-few-public-methods
         if max_pool:
             var_x = MaxPool2D(pool_size=3, strides=2, name=f"{name}.pool")(var_x)
         var_x = ZeroPadding2D(padding=padding, name=f"{name}.pad")(var_x)
-        var_x = Conv2D(filters,
-                       kernel_size=kernel_size,
-                       strides=strides,
-                       padding="valid",
-                       activation="relu",
-                       name=name)(var_x)
+        var_x = Conv2D(
+            filters,
+            kernel_size=kernel_size,
+            strides=strides,
+            padding="valid",
+            activation="relu",
+            name=name,
+        )(var_x)
         return var_x
 
     def __call__(self) -> Model:
-        """ Create the AlexNet Model
+        """Create the AlexNet Model
 
         Returns
         -------
@@ -122,23 +141,21 @@ class AlexNet(_net):  # pylint:disable=too-few-public-methods
         kernel_size = 11
         strides = 4
 
-        for idx, (filters, block_idx) in enumerate(zip(self._filters, self._feature_indices)):
+        for idx, (filters, block_idx) in enumerate(
+            zip(self._filters, self._feature_indices)
+        ):
             padding = 2 if idx < 2 else 1
             do_max_pool = 0 < idx < 3
-            var_x = self._conv_block(var_x,
-                                     padding,
-                                     filters,
-                                     kernel_size,
-                                     strides,
-                                     block_idx,
-                                     do_max_pool)
+            var_x = self._conv_block(
+                var_x, padding, filters, kernel_size, strides, block_idx, do_max_pool
+            )
             kernel_size = max(3, kernel_size // 2)
             strides = 1
         return Model(inputs=inputs, outputs=[var_x])
 
 
 class SqueezeNet(_net):  # pylint:disable=too-few-public-methods
-    """ SqueezeNet ported from torchvision version.
+    """SqueezeNet ported from torchvision version.
 
     Notes
     -----
@@ -155,12 +172,10 @@ class SqueezeNet(_net):  # pylint:disable=too-few-public-methods
     """
 
     @classmethod
-    def _fire(cls,
-              inputs: Tensor,
-              squeeze_planes: int,
-              expand_planes: int,
-              block_idx: int) -> Tensor:
-        """ The fire block for SqueezeNet.
+    def _fire(
+        cls, inputs: Tensor, squeeze_planes: int, expand_planes: int, block_idx: int
+    ) -> Tensor:
+        """The fire block for SqueezeNet.
 
         Parameters
         ----------
@@ -179,14 +194,23 @@ class SqueezeNet(_net):  # pylint:disable=too-few-public-methods
             The output of the SqueezeNet fire block
         """
         name = f"features.{block_idx}"
-        squeezed = Conv2D(squeeze_planes, 1, activation="relu", name=f"{name}.squeeze")(inputs)
-        expand1 = Conv2D(expand_planes, 1, activation="relu", name=f"{name}.expand1x1")(squeezed)
-        expand3 = Conv2D(expand_planes, 3,
-                         activation="relu", padding="same", name=f"{name}.expand3x3")(squeezed)
+        squeezed = Conv2D(squeeze_planes, 1, activation="relu", name=f"{name}.squeeze")(
+            inputs
+        )
+        expand1 = Conv2D(expand_planes, 1, activation="relu", name=f"{name}.expand1x1")(
+            squeezed
+        )
+        expand3 = Conv2D(
+            expand_planes,
+            3,
+            activation="relu",
+            padding="same",
+            name=f"{name}.expand3x3",
+        )(squeezed)
         return Concatenate(axis=-1, name=name)([expand1, expand3])
 
     def __call__(self) -> Model:
-        """ Create the SqueezeNet Model
+        """Create the SqueezeNet Model
 
         Returns
         -------

@@ -41,22 +41,23 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
     "VGG_Obstructed options. Mask designed to provide smart segmentation of mostly frontal "
     "faces.\nThe mask model has been specifically trained to recognize some facial obstructions "
     "(hands and eyeglasses). Profile faces may result in sub-par performance."
-    )
+)
 
 
 _DEFAULTS = {
     "batch-size": dict(
         default=2,
         info="The batch size to use. To a point, higher batch sizes equal better performance, but "
-             "setting it too high can harm performance.\n"
-             "\n\tNvidia users: If the batchsize is set higher than the your GPU can accomodate "
-             "then this will automatically be lowered.",
+        "setting it too high can harm performance.\n"
+        "\n\tNvidia users: If the batchsize is set higher than the your GPU can accomodate "
+        "then this will automatically be lowered.",
         datatype=int,
         rounding=1,
         min_max=(1, 64),

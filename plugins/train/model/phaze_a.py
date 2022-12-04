@@ -1,29 +1,39 @@
 #!/usr/bin/env python3
 """ Phaze-A Model by TorzDF with thanks to BirbFakes and the myriad of testers. """
-
 # pylint: disable=too-many-lines
+from __future__ import annotations
+
 import logging
 import sys
 from dataclasses import dataclass
-
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
 import numpy as np
 
-from lib.model.nn_blocks import (
-    Conv2D, Conv2DBlock, Conv2DOutput, ResidualBlock, UpscaleBlock, Upscale2xBlock,
-    UpscaleResizeImagesBlock, UpscaleDNYBlock)
-from lib.model.normalization import (
-    AdaInstanceNormalization, GroupNormalization, InstanceNormalization, LayerNormalization,
-    RMSNormalization)
-from lib.utils import get_backend, get_tf_version, FaceswapError
-
-from ._base import KerasModel, ModelBase, get_all_sub_models
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from ._base import get_all_sub_models
+from ._base import KerasModel
+from ._base import ModelBase
+from lib.model.nn_blocks import Conv2D
+from lib.model.nn_blocks import Conv2DBlock
+from lib.model.nn_blocks import Conv2DOutput
+from lib.model.nn_blocks import ResidualBlock
+from lib.model.nn_blocks import Upscale2xBlock
+from lib.model.nn_blocks import UpscaleBlock
+from lib.model.nn_blocks import UpscaleDNYBlock
+from lib.model.nn_blocks import UpscaleResizeImagesBlock
+from lib.model.normalization import AdaInstanceNormalization
+from lib.model.normalization import GroupNormalization
+from lib.model.normalization import InstanceNormalization
+from lib.model.normalization import LayerNormalization
+from lib.model.normalization import RMSNormalization
+from lib.utils import FaceswapError
+from lib.utils import get_backend
+from lib.utils import get_tf_version
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -31,21 +41,54 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 if get_backend() == "amd":
     from keras import applications as kapp, backend as K
     from keras.layers import (
-        Add, BatchNormalization, Concatenate, Dense, Dropout, Flatten, GaussianNoise, MaxPool2D,
-        GlobalAveragePooling2D, GlobalMaxPooling2D, Input, LeakyReLU, Reshape, UpSampling2D,
-        Conv2D as KConv2D)
+        Add,
+        BatchNormalization,
+        Concatenate,
+        Dense,
+        Dropout,
+        Flatten,
+        GaussianNoise,
+        MaxPool2D,
+        GlobalAveragePooling2D,
+        GlobalMaxPooling2D,
+        Input,
+        LeakyReLU,
+        Reshape,
+        UpSampling2D,
+        Conv2D as KConv2D,
+    )
     from keras.models import clone_model
+
     # typing checks
     import keras
     from plaidml.tile import Value as Tensor  # pylint:disable=import-error
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras import applications as kapp, backend as K  # pylint:disable=import-error
+    from tensorflow.keras import (
+        applications as kapp,
+        backend as K,
+    )  # pylint:disable=import-error
     from tensorflow.keras.layers import (  # pylint:disable=import-error,no-name-in-module
-        Add, BatchNormalization, Concatenate, Dense, Dropout, Flatten, GaussianNoise, MaxPool2D,
-        GlobalAveragePooling2D, GlobalMaxPooling2D, Input, LeakyReLU, Reshape, UpSampling2D,
-        Conv2D as KConv2D)
-    from tensorflow.keras.models import clone_model  # noqa pylint:disable=import-error,no-name-in-module
+        Add,
+        BatchNormalization,
+        Concatenate,
+        Dense,
+        Dropout,
+        Flatten,
+        GaussianNoise,
+        MaxPool2D,
+        GlobalAveragePooling2D,
+        GlobalMaxPooling2D,
+        Input,
+        LeakyReLU,
+        Reshape,
+        UpSampling2D,
+        Conv2D as KConv2D,
+    )
+    from tensorflow.keras.models import (
+        clone_model,
+    )  # noqa pylint:disable=import-error,no-name-in-module
+
     # typing checks
     from tensorflow import keras
     from tensorflow import Tensor
@@ -53,7 +96,7 @@ else:
 
 @dataclass
 class _EncoderInfo:
-    """ Contains model configuration options for various Phaze-A Encoders.
+    """Contains model configuration options for various Phaze-A Encoders.
 
     Parameters
     ----------
@@ -77,93 +120,197 @@ class _EncoderInfo:
     color_order: str, optional
         The color order that the model expects (`"bgr"` or `"rgb"`). Default: `"rgb"`
     """
+
     keras_name: str
     default_size: int
     no_amd: bool = False
     tf_min: float = 2.0
-    scaling: Tuple[int, int] = (0, 1)
+    scaling: tuple[int, int] = (0, 1)
     min_size: int = 32
     enforce_for_weights: bool = False
     color_order: Literal["bgr", "rgb"] = "rgb"
 
 
-_MODEL_MAPPING: Dict[str, _EncoderInfo] = dict(
-    densenet121=_EncoderInfo(
-        keras_name="DenseNet121", default_size=224),
-    densenet169=_EncoderInfo(
-        keras_name="DenseNet169", default_size=224),
-    densenet201=_EncoderInfo(
-        keras_name="DenseNet201", default_size=224),
+_MODEL_MAPPING: dict[str, _EncoderInfo] = dict(
+    densenet121=_EncoderInfo(keras_name="DenseNet121", default_size=224),
+    densenet169=_EncoderInfo(keras_name="DenseNet169", default_size=224),
+    densenet201=_EncoderInfo(keras_name="DenseNet201", default_size=224),
     efficientnet_b0=_EncoderInfo(
-        keras_name="EfficientNetB0", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=224),
+        keras_name="EfficientNetB0",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=224,
+    ),
     efficientnet_b1=_EncoderInfo(
-        keras_name="EfficientNetB1", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=240),
+        keras_name="EfficientNetB1",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=240,
+    ),
     efficientnet_b2=_EncoderInfo(
-        keras_name="EfficientNetB2", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=260),
+        keras_name="EfficientNetB2",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=260,
+    ),
     efficientnet_b3=_EncoderInfo(
-        keras_name="EfficientNetB3", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=300),
+        keras_name="EfficientNetB3",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=300,
+    ),
     efficientnet_b4=_EncoderInfo(
-        keras_name="EfficientNetB4", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=380),
+        keras_name="EfficientNetB4",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=380,
+    ),
     efficientnet_b5=_EncoderInfo(
-        keras_name="EfficientNetB5", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=456),
+        keras_name="EfficientNetB5",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=456,
+    ),
     efficientnet_b6=_EncoderInfo(
-        keras_name="EfficientNetB6", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=528),
+        keras_name="EfficientNetB6",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=528,
+    ),
     efficientnet_b7=_EncoderInfo(
-        keras_name="EfficientNetB7", no_amd=True, tf_min=2.3, scaling=(0, 255), default_size=600),
+        keras_name="EfficientNetB7",
+        no_amd=True,
+        tf_min=2.3,
+        scaling=(0, 255),
+        default_size=600,
+    ),
     efficientnet_v2_b0=_EncoderInfo(
-        keras_name="EfficientNetV2B0", no_amd=True, tf_min=2.8, scaling=(-1, 1), default_size=224),
+        keras_name="EfficientNetV2B0",
+        no_amd=True,
+        tf_min=2.8,
+        scaling=(-1, 1),
+        default_size=224,
+    ),
     efficientnet_v2_b1=_EncoderInfo(
-        keras_name="EfficientNetV2B1", no_amd=True, tf_min=2.8, scaling=(-1, 1), default_size=240),
+        keras_name="EfficientNetV2B1",
+        no_amd=True,
+        tf_min=2.8,
+        scaling=(-1, 1),
+        default_size=240,
+    ),
     efficientnet_v2_b2=_EncoderInfo(
-        keras_name="EfficientNetV2B2", no_amd=True, tf_min=2.8, scaling=(-1, 1), default_size=260),
+        keras_name="EfficientNetV2B2",
+        no_amd=True,
+        tf_min=2.8,
+        scaling=(-1, 1),
+        default_size=260,
+    ),
     efficientnet_v2_b3=_EncoderInfo(
-        keras_name="EfficientNetV2B3", no_amd=True, tf_min=2.8, scaling=(-1, 1), default_size=300),
+        keras_name="EfficientNetV2B3",
+        no_amd=True,
+        tf_min=2.8,
+        scaling=(-1, 1),
+        default_size=300,
+    ),
     efficientnet_v2_s=_EncoderInfo(
-        keras_name="EfficientNetV2S", no_amd=True, tf_min=2.8, scaling=(-1, 1), default_size=384),
+        keras_name="EfficientNetV2S",
+        no_amd=True,
+        tf_min=2.8,
+        scaling=(-1, 1),
+        default_size=384,
+    ),
     efficientnet_v2_m=_EncoderInfo(
-        keras_name="EfficientNetV2M", no_amd=True, tf_min=2.8, scaling=(-1, 1), default_size=480),
+        keras_name="EfficientNetV2M",
+        no_amd=True,
+        tf_min=2.8,
+        scaling=(-1, 1),
+        default_size=480,
+    ),
     efficientnet_v2_l=_EncoderInfo(
-        keras_name="EfficientNetV2L", no_amd=True, tf_min=2.8, scaling=(-1, 1), default_size=480),
+        keras_name="EfficientNetV2L",
+        no_amd=True,
+        tf_min=2.8,
+        scaling=(-1, 1),
+        default_size=480,
+    ),
     inception_resnet_v2=_EncoderInfo(
-        keras_name="InceptionResNetV2", scaling=(-1, 1), min_size=75, default_size=299),
+        keras_name="InceptionResNetV2", scaling=(-1, 1), min_size=75, default_size=299
+    ),
     inception_v3=_EncoderInfo(
-        keras_name="InceptionV3", scaling=(-1, 1), min_size=75, default_size=299),
-    mobilenet=_EncoderInfo(
-        keras_name="MobileNet", scaling=(-1, 1), default_size=224),
+        keras_name="InceptionV3", scaling=(-1, 1), min_size=75, default_size=299
+    ),
+    mobilenet=_EncoderInfo(keras_name="MobileNet", scaling=(-1, 1), default_size=224),
     mobilenet_v2=_EncoderInfo(
-        keras_name="MobileNetV2", scaling=(-1, 1), default_size=224),
+        keras_name="MobileNetV2", scaling=(-1, 1), default_size=224
+    ),
     mobilenet_v3_large=_EncoderInfo(
-        keras_name="MobileNetV3Large", no_amd=True, tf_min=2.4, scaling=(-1, 1), default_size=224),
+        keras_name="MobileNetV3Large",
+        no_amd=True,
+        tf_min=2.4,
+        scaling=(-1, 1),
+        default_size=224,
+    ),
     mobilenet_v3_small=_EncoderInfo(
-        keras_name="MobileNetV3Small", no_amd=True, tf_min=2.4, scaling=(-1, 1), default_size=224),
+        keras_name="MobileNetV3Small",
+        no_amd=True,
+        tf_min=2.4,
+        scaling=(-1, 1),
+        default_size=224,
+    ),
     nasnet_large=_EncoderInfo(
-        keras_name="NASNetLarge", scaling=(-1, 1), default_size=331, enforce_for_weights=True),
+        keras_name="NASNetLarge",
+        scaling=(-1, 1),
+        default_size=331,
+        enforce_for_weights=True,
+    ),
     nasnet_mobile=_EncoderInfo(
-        keras_name="NASNetMobile", scaling=(-1, 1), default_size=224, enforce_for_weights=True),
+        keras_name="NASNetMobile",
+        scaling=(-1, 1),
+        default_size=224,
+        enforce_for_weights=True,
+    ),
     resnet50=_EncoderInfo(
-        keras_name="ResNet50", scaling=(-1, 1), min_size=32, default_size=224),
+        keras_name="ResNet50", scaling=(-1, 1), min_size=32, default_size=224
+    ),
     resnet50_v2=_EncoderInfo(
-        keras_name="ResNet50V2", no_amd=True, scaling=(-1, 1), default_size=224),
+        keras_name="ResNet50V2", no_amd=True, scaling=(-1, 1), default_size=224
+    ),
     resnet101=_EncoderInfo(
-        keras_name="ResNet101", no_amd=True, scaling=(-1, 1), default_size=224),
+        keras_name="ResNet101", no_amd=True, scaling=(-1, 1), default_size=224
+    ),
     resnet101_v2=_EncoderInfo(
-        keras_name="ResNet101V2", no_amd=True, scaling=(-1, 1), default_size=224),
+        keras_name="ResNet101V2", no_amd=True, scaling=(-1, 1), default_size=224
+    ),
     resnet152=_EncoderInfo(
-        keras_name="ResNet152", no_amd=True, scaling=(-1, 1), default_size=224),
+        keras_name="ResNet152", no_amd=True, scaling=(-1, 1), default_size=224
+    ),
     resnet152_v2=_EncoderInfo(
-        keras_name="ResNet152V2", no_amd=True, scaling=(-1, 1), default_size=224),
+        keras_name="ResNet152V2", no_amd=True, scaling=(-1, 1), default_size=224
+    ),
     vgg16=_EncoderInfo(
-        keras_name="VGG16", color_order="bgr", scaling=(0, 255), default_size=224),
+        keras_name="VGG16", color_order="bgr", scaling=(0, 255), default_size=224
+    ),
     vgg19=_EncoderInfo(
-        keras_name="VGG19", color_order="bgr", scaling=(0, 255), default_size=224),
+        keras_name="VGG19", color_order="bgr", scaling=(0, 255), default_size=224
+    ),
     xception=_EncoderInfo(
-        keras_name="Xception", scaling=(-1, 1), min_size=71, default_size=299),
+        keras_name="Xception", scaling=(-1, 1), min_size=71, default_size=299
+    ),
     fs_original=_EncoderInfo(
-        keras_name="", color_order="bgr", min_size=32, default_size=1024))
+        keras_name="", color_order="bgr", min_size=32, default_size=1024
+    ),
+)
 
 
 class Model(ModelBase):
-    """ Phaze-A Faceswap Model.
+    """Phaze-A Faceswap Model.
 
     An highly adaptable and configurable model by torzDF
 
@@ -176,6 +323,7 @@ class Model(ModelBase):
         The default keyword arguments passed in from :class:`~scripts.train.Train` or
         :class:`~scripts.train.Convert`
     """
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         if self.config["output_size"] % 64 != 0:
@@ -188,16 +336,20 @@ class Model(ModelBase):
         self.color_order = _MODEL_MAPPING[self.config["enc_architecture"]].color_order
 
     def build(self) -> None:
-        """ Build the model and assign to :attr:`model`.
+        """Build the model and assign to :attr:`model`.
 
         Override's the default build function for allowing the setting of dropout rate for pre-
         existing models.
         """
         is_summary = hasattr(self._args, "summary") and self._args.summary
         if not self._io.model_exists or self._is_predict or is_summary:
-            logger.debug("New model, inference or summary. Falling back to default build: "
-                         "(exists: %s, inference: %s, is_summary: %s)",
-                         self._io.model_exists, self._is_predict, is_summary)
+            logger.debug(
+                "New model, inference or summary. Falling back to default build: "
+                "(exists: %s, inference: %s, is_summary: %s)",
+                self._io.model_exists,
+                self._is_predict,
+                is_summary,
+            )
             super().build()
             return
         with self._settings.strategy_scope():
@@ -208,7 +360,7 @@ class Model(ModelBase):
             self._output_summary()
 
     def _update_dropouts(self, model: keras.models.Model) -> keras.models.Model:
-        """ Update the saved model with new dropout rates.
+        """Update the saved model with new dropout rates.
 
         Keras, annoyingly, does not actually change the dropout of the underlying layer, so we need
         to update the rate, then clone the model into a new model and reload weights.
@@ -223,8 +375,9 @@ class Model(ModelBase):
         :class:`keras.models.Model`
             The loaded Keras Model with the dropout rates updated
         """
-        dropouts = dict(fc=self.config["fc_dropout"],
-                        gblock=self.config["fc_gblock_dropout"])
+        dropouts = dict(
+            fc=self.config["fc_dropout"], gblock=self.config["fc_gblock_dropout"]
+        )
         logger.debug("Config dropouts: %s", dropouts)
         updated = False
         for mod in get_all_sub_models(model):
@@ -237,11 +390,19 @@ class Model(ModelBase):
                 if not isinstance(layer, Dropout):
                     continue
                 if layer.rate != rate:
-                    logger.debug("Updating dropout rate for %s from %s to %s",
-                                 f"{mod.name} - {layer.name}", layer.rate, rate)
+                    logger.debug(
+                        "Updating dropout rate for %s from %s to %s",
+                        f"{mod.name} - {layer.name}",
+                        layer.rate,
+                        rate,
+                    )
                     if not log_once:
-                        logger.info("Updating Dropout Rate for '%s' from %s to %s",
-                                    mod.name, layer.rate, rate)
+                        logger.info(
+                            "Updating Dropout Rate for '%s' from %s to %s",
+                            mod.name,
+                            layer.rate,
+                            rate,
+                        )
                         log_once = True
                     layer.rate = rate
                     updated = True
@@ -253,8 +414,8 @@ class Model(ModelBase):
             model = new_model
         return model
 
-    def _select_freeze_layers(self) -> List[str]:
-        """ Process the selected frozen layers and replace the `keras_encoder` option with the
+    def _select_freeze_layers(self) -> list[str]:
+        """Process the selected frozen layers and replace the `keras_encoder` option with the
         actual keras model name
 
         Returns
@@ -265,20 +426,24 @@ class Model(ModelBase):
         arch = self.config["enc_architecture"]
         layers = self.config["freeze_layers"]
         # EfficientNetV2 is inconsistent with other model's naming conventions
-        keras_name = _MODEL_MAPPING[arch].keras_name.replace("EfficientNetV2", "EfficientNetV2-")
+        keras_name = _MODEL_MAPPING[arch].keras_name.replace(
+            "EfficientNetV2", "EfficientNetV2-"
+        )
 
         if "keras_encoder" not in self.config["freeze_layers"]:
             retval = layers
         elif keras_name:
-            retval = [layer.replace("keras_encoder", keras_name.lower()) for layer in layers]
+            retval = [
+                layer.replace("keras_encoder", keras_name.lower()) for layer in layers
+            ]
             logger.debug("Substituting 'keras_encoder' for '%s'", arch)
         else:
             retval = [layer for layer in layers if layer != "keras_encoder"]
             logger.debug("Removing 'keras_encoder' for '%s'", arch)
         return retval
 
-    def _get_input_shape(self) -> Tuple[int, int, int]:
-        """ Obtain the input shape for the model.
+    def _get_input_shape(self) -> tuple[int, int, int]:
+        """Obtain the input shape for the model.
 
         Input shape is calculated from the selected Encoder's input size, scaled to the user
         selected Input Scaling, rounded down to the nearest 16 pixels.
@@ -302,9 +467,14 @@ class Model(ModelBase):
         size = int(max(min_size, ((default_size * scaling) // 16) * 16))
 
         if self.config["enc_load_weights"] and enforce_size and scaling != 1.0:
-            logger.warning("%s requires input size to be %spx when loading imagenet weights. "
-                           "Adjusting input size from %spx to %spx",
-                           arch, default_size, size, default_size)
+            logger.warning(
+                "%s requires input size to be %spx when loading imagenet weights. "
+                "Adjusting input size from %spx to %spx",
+                arch,
+                default_size,
+                size,
+                default_size,
+            )
             retval = (default_size, default_size, 3)
         else:
             retval = (size, size, 3)
@@ -313,7 +483,7 @@ class Model(ModelBase):
         return retval
 
     def _validate_encoder_architecture(self) -> None:
-        """ Validate that the requested architecture is a valid choice for the running system
+        """Validate that the requested architecture is a valid choice for the running system
         configuration.
 
         If the selection is not valid, an error is logged and system exits.
@@ -321,23 +491,29 @@ class Model(ModelBase):
         arch = self.config["enc_architecture"].lower()
         model = _MODEL_MAPPING.get(arch)
         if not model:
-            raise FaceswapError(f"'{arch}' is not a valid choice for encoder architecture. Choose "
-                                f"one of {list(_MODEL_MAPPING.keys())}.")
+            raise FaceswapError(
+                f"'{arch}' is not a valid choice for encoder architecture. Choose "
+                f"one of {list(_MODEL_MAPPING.keys())}."
+            )
 
         if get_backend() == "amd" and model.no_amd:
             valid = [k for k, v in _MODEL_MAPPING.items() if not v.no_amd]
-            raise FaceswapError(f"'{arch}' is not compatible with the AMD backend. Choose one of "
-                                f"{valid}.")
+            raise FaceswapError(
+                f"'{arch}' is not compatible with the AMD backend. Choose one of "
+                f"{valid}."
+            )
 
         tf_ver = get_tf_version()
         tf_min = model.tf_min
         if get_backend() != "amd" and tf_ver < tf_min:
-            raise FaceswapError(f"{arch}' is not compatible with your version of Tensorflow. The "
-                                f"minimum version required is {tf_min} whilst you have version "
-                                f"{tf_ver} installed.")
+            raise FaceswapError(
+                f"{arch}' is not compatible with your version of Tensorflow. The "
+                f"minimum version required is {tf_min} whilst you have version "
+                f"{tf_ver} installed."
+            )
 
-    def build_model(self, inputs: List[Tensor]) -> keras.models.Model:
-        """ Create the model's structure.
+    def build_model(self, inputs: list[Tensor]) -> keras.models.Model:
+        """Create the model's structure.
 
         Parameters
         ----------
@@ -365,8 +541,8 @@ class Model(ModelBase):
         autoencoder = KerasModel(inputs, outputs, name=self.model_name)
         return autoencoder
 
-    def _build_encoders(self, inputs: List[Tensor]) -> Dict[str, keras.models.Model]:
-        """ Build the encoders for Phaze-A
+    def _build_encoders(self, inputs: list[Tensor]) -> dict[str, keras.models.Model]:
+        """Build the encoders for Phaze-A
 
         Parameters
         ----------
@@ -385,9 +561,9 @@ class Model(ModelBase):
         return retval
 
     def _build_fully_connected(
-            self,
-            inputs: Dict[str, keras.models.Model]) -> Dict[str, List[keras.models.Model]]:
-        """ Build the fully connected layers for Phaze-A
+        self, inputs: dict[str, keras.models.Model]
+    ) -> dict[str, list[keras.models.Model]]:
+        """Build the fully connected layers for Phaze-A
 
         Parameters
         ----------
@@ -417,8 +593,12 @@ class Model(ModelBase):
                 fc_shared = fc_a
             else:
                 fc_shared = fc_both
-            inter_a = [Concatenate(name="inter_a")([inter_a[0], fc_shared(inputs["a"])])]
-            inter_b = [Concatenate(name="inter_b")([inter_b[0], fc_shared(inputs["b"])])]
+            inter_a = [
+                Concatenate(name="inter_a")([inter_a[0], fc_shared(inputs["a"])])
+            ]
+            inter_b = [
+                Concatenate(name="inter_b")([inter_b[0], fc_shared(inputs["b"])])
+            ]
 
         if self.config["enable_gblock"]:
             fc_gblock = FullyConnected("gblock", input_shapes, self.config)()
@@ -430,10 +610,9 @@ class Model(ModelBase):
         return retval
 
     def _build_g_blocks(
-                self,
-                inputs: Dict[str, List[keras.models.Model]]
-            ) -> Dict[str, Union[List[keras.models.Model], keras.models.Model]]:
-        """ Build the g-block layers for Phaze-A.
+        self, inputs: dict[str, list[keras.models.Model]]
+    ) -> dict[str, list[keras.models.Model] | keras.models.Model]:
+        """Build the g-block layers for Phaze-A.
 
         If a g-block has not been selected for this model, then the original `inters` models are
         returned for passing straight to the decoder
@@ -455,20 +634,21 @@ class Model(ModelBase):
 
         input_shapes = [K.int_shape(inter)[1:] for inter in inputs["a"]]
         if self.config["split_gblock"]:
-            retval = dict(a=GBlock("a", input_shapes, self.config)()(inputs["a"]),
-                          b=GBlock("b", input_shapes, self.config)()(inputs["b"]))
+            retval = dict(
+                a=GBlock("a", input_shapes, self.config)()(inputs["a"]),
+                b=GBlock("b", input_shapes, self.config)()(inputs["b"]),
+            )
         else:
             g_block = GBlock("both", input_shapes, self.config)()
-            retval = dict(a=g_block((inputs["a"])), b=g_block((inputs["b"])))
+            retval = dict(a=g_block(inputs["a"]), b=g_block(inputs["b"]))
 
         logger.debug("G-Blocks: %s", retval)
         return retval
 
     def _build_decoders(
-            self,
-            inputs: Dict[str, Union[List[keras.models.Model], keras.models.Model]]
-            ) -> Dict[str, keras.models.Model]:
-        """ Build the encoders for Phaze-A
+        self, inputs: dict[str, list[keras.models.Model] | keras.models.Model]
+    ) -> dict[str, keras.models.Model]:
+        """Build the encoders for Phaze-A
 
         Parameters
         ----------
@@ -495,8 +675,10 @@ class Model(ModelBase):
         input_shape = K.int_shape(input_)[1:]
 
         if self.config["split_decoders"]:
-            retval = dict(a=Decoder("a", input_shape, self.config)()(inputs["a"]),
-                          b=Decoder("b", input_shape, self.config)()(inputs["b"]))
+            retval = dict(
+                a=Decoder("a", input_shape, self.config)()(inputs["a"]),
+                b=Decoder("b", input_shape, self.config)()(inputs["b"]),
+            )
         else:
             decoder = Decoder("both", input_shape, self.config)()
             retval = dict(a=decoder(inputs["a"]), b=decoder(inputs["b"]))
@@ -505,8 +687,10 @@ class Model(ModelBase):
         return retval
 
 
-def _bottleneck(inputs: Tensor, bottleneck: str, size: int, normalization: str) -> Tensor:
-    """ The bottleneck fully connected layer. Can be called from Encoder or FullyConnected layers.
+def _bottleneck(
+    inputs: Tensor, bottleneck: str, size: int, normalization: str
+) -> Tensor:
+    """The bottleneck fully connected layer. Can be called from Encoder or FullyConnected layers.
 
     Parameters
     ----------
@@ -524,12 +708,14 @@ def _bottleneck(inputs: Tensor, bottleneck: str, size: int, normalization: str) 
     tensor
         The output from the bottleneck
     """
-    norms = dict(layer=LayerNormalization,
-                 rms=RMSNormalization,
-                 instance=InstanceNormalization)
-    bottlenecks = dict(average_pooling=GlobalAveragePooling2D(),
-                       dense=Dense(size),
-                       max_pooling=GlobalMaxPooling2D())
+    norms = dict(
+        layer=LayerNormalization, rms=RMSNormalization, instance=InstanceNormalization
+    )
+    bottlenecks = dict(
+        average_pooling=GlobalAveragePooling2D(),
+        dense=Dense(size),
+        max_pooling=GlobalMaxPooling2D(),
+    )
     var_x = inputs
     if normalization:
         var_x = norms[normalization]()(var_x)
@@ -543,13 +729,21 @@ def _bottleneck(inputs: Tensor, bottleneck: str, size: int, normalization: str) 
     return var_x
 
 
-def _get_upscale_layer(method: Literal["resize_images", "subpixel", "upscale_dny", "upscale_fast",
-                                       "upscale_hybrid", "upsample2d"],
-                       filters: int,
-                       activation: Optional[str] = None,
-                       upsamples: Optional[int] = None,
-                       interpolation: Optional[str] = None) -> keras.layers.Layer:
-    """ Obtain an instance of the requested upscale method.
+def _get_upscale_layer(
+    method: Literal[
+        "resize_images",
+        "subpixel",
+        "upscale_dny",
+        "upscale_fast",
+        "upscale_hybrid",
+        "upsample2d",
+    ],
+    filters: int,
+    activation: str | None = None,
+    upsamples: int | None = None,
+    interpolation: str | None = None,
+) -> keras.layers.Layer:
+    """Obtain an instance of the requested upscale method.
 
     Parameters
     ----------
@@ -574,7 +768,7 @@ def _get_upscale_layer(method: Literal["resize_images", "subpixel", "upscale_dny
         The selected configured upscale layer
     """
     if method == "upsample2d":
-        kwargs: Dict[str, Union[str, int]] = {}
+        kwargs: dict[str, str | int] = {}
         if upsamples:
             kwargs["size"] = upsamples
         if interpolation:
@@ -591,12 +785,14 @@ def _get_upscale_layer(method: Literal["resize_images", "subpixel", "upscale_dny
     return UpscaleResizeImagesBlock(filters, activation=activation)
 
 
-def _get_curve(start_y: int,
-               end_y: int,
-               num_points: int,
-               scale: float,
-               mode: Literal["full", "cap_max", "cap_min"] = "full") -> List[int]:
-    """ Obtain a curve.
+def _get_curve(
+    start_y: int,
+    end_y: int,
+    num_points: int,
+    scale: float,
+    mode: Literal["full", "cap_max", "cap_min"] = "full",
+) -> list[int]:
+    """Obtain a curve.
 
     For the given start and end y values, return the y co-ordinates of a curve for the given
     number of points. The points are rounded down to the nearest 8.
@@ -623,31 +819,40 @@ def _get_curve(start_y: int,
     -------
     list
         List of ints of points for the given curve
-     """
-    scale = min(.99, max(-.99, scale))
-    logger.debug("Obtaining curve: (start_y: %s, end_y: %s, num_points: %s, scale: %s, mode: %s)",
-                 start_y, end_y, num_points, scale, mode)
+    """
+    scale = min(0.99, max(-0.99, scale))
+    logger.debug(
+        "Obtaining curve: (start_y: %s, end_y: %s, num_points: %s, scale: %s, mode: %s)",
+        start_y,
+        end_y,
+        num_points,
+        scale,
+        mode,
+    )
     if mode == "full":
-        x_axis = np.linspace(0., 1., num=num_points)
+        x_axis = np.linspace(0.0, 1.0, num=num_points)
         y_axis = (x_axis - x_axis * scale) / (scale - abs(x_axis) * 2 * scale + 1)
         y_axis = y_axis * (end_y - start_y) + start_y
         retval = [int((y // 8) * 8) for y in y_axis]
     else:
         y_axis = [start_y]
-        scale = 1. - abs(scale)
+        scale = 1.0 - abs(scale)
         for _ in range(num_points - 1):
             current_value = max(end_y, int(((y_axis[-1] * scale) // 8) * 8))
             y_axis.append(current_value)
             if current_value == end_y:
                 break
-        pad = [start_y if mode == "cap_max" else end_y for _ in range(num_points - len(y_axis))]
+        pad = [
+            start_y if mode == "cap_max" else end_y
+            for _ in range(num_points - len(y_axis))
+        ]
         retval = pad + y_axis if mode == "cap_max" else y_axis + pad
     logger.debug("Returning curve: %s", retval)
     return retval
 
 
 def _scale_dim(target_resolution: int, original_dim: int) -> int:
-    """ Scale a given `original_dim` so that it is a factor of the target resolution.
+    """Scale a given `original_dim` so that it is a factor of the target resolution.
 
     Parameters
     ----------
@@ -669,13 +874,17 @@ def _scale_dim(target_resolution: int, original_dim: int) -> int:
         if not next_dim.is_integer():
             break
         new_dim = int(next_dim)
-    logger.debug("target_resolution: %s, original_dim: %s, new_dim: %s",
-                 target_resolution, original_dim, new_dim)
+    logger.debug(
+        "target_resolution: %s, original_dim: %s, new_dim: %s",
+        target_resolution,
+        original_dim,
+        new_dim,
+    )
     return new_dim
 
 
-class Encoder():  # pylint:disable=too-few-public-methods
-    """ Encoder. Uses one of pre-existing Keras/Faceswap models or custom encoder.
+class Encoder:  # pylint:disable=too-few-public-methods
+    """Encoder. Uses one of pre-existing Keras/Faceswap models or custom encoder.
 
     Parameters
     ----------
@@ -684,26 +893,33 @@ class Encoder():  # pylint:disable=too-few-public-methods
     config: dict
         The model configuration options
     """
-    def __init__(self, input_shape: Tuple[int, ...], config: dict) -> None:
+
+    def __init__(self, input_shape: tuple[int, ...], config: dict) -> None:
         self.input_shape = input_shape
         self._config = config
         self._input_shape = input_shape
 
     @property
-    def _model_kwargs(self) -> Dict[str, Dict[str, Union[str, bool]]]:
-        """ dict: Configuration option for architecture mapped to optional kwargs. """
-        return dict(mobilenet=dict(alpha=self._config["mobilenet_width"],
-                                   depth_multiplier=self._config["mobilenet_depth"],
-                                   dropout=self._config["mobilenet_dropout"]),
-                    mobilenet_v2=dict(alpha=self._config["mobilenet_width"]),
-                    mobilenet_v3=dict(alpha=self._config["mobilenet_width"],
-                                      minimalist=self._config["mobilenet_minimalistic"],
-                                      include_preprocessing=False))
+    def _model_kwargs(self) -> dict[str, dict[str, str | bool]]:
+        """dict: Configuration option for architecture mapped to optional kwargs."""
+        return dict(
+            mobilenet=dict(
+                alpha=self._config["mobilenet_width"],
+                depth_multiplier=self._config["mobilenet_depth"],
+                dropout=self._config["mobilenet_dropout"],
+            ),
+            mobilenet_v2=dict(alpha=self._config["mobilenet_width"]),
+            mobilenet_v3=dict(
+                alpha=self._config["mobilenet_width"],
+                minimalist=self._config["mobilenet_minimalistic"],
+                include_preprocessing=False,
+            ),
+        )
 
     @property
-    def _selected_model(self) -> Tuple[_EncoderInfo, dict]:
-        """ tuple(dict, :class:`_EncoderInfo`): The selected encoder model and it's associated
-        keyword arguments """
+    def _selected_model(self) -> tuple[_EncoderInfo, dict]:
+        """tuple(dict, :class:`_EncoderInfo`): The selected encoder model and it's associated
+        keyword arguments"""
         arch = self._config["enc_architecture"]
         model = _MODEL_MAPPING[arch]
         kwargs = self._model_kwargs.get(arch, {})
@@ -712,7 +928,7 @@ class Encoder():  # pylint:disable=too-few-public-methods
         return model, kwargs
 
     def __call__(self) -> keras.models.Model:
-        """ Create the Phaze-A Encoder Model.
+        """Create the Phaze-A Encoder Model.
 
         Returns
         -------
@@ -725,27 +941,31 @@ class Encoder():  # pylint:disable=too-few-public-methods
         scaling = self._selected_model[0].scaling
         if scaling:
             #  Some models expect different scaling.
-            logger.debug("Scaling to %s for '%s'", scaling, self._config["enc_architecture"])
+            logger.debug(
+                "Scaling to %s for '%s'", scaling, self._config["enc_architecture"]
+            )
             if scaling == (0, 255):
                 # models expecting inputs from 0 to 255.
-                var_x = var_x * 255.
+                var_x = var_x * 255.0
             if scaling == (-1, 1):
                 # models expecting inputs from -1 to 1.
-                var_x = var_x * 2.
+                var_x = var_x * 2.0
                 var_x = var_x - 1.0
 
         var_x = self._get_encoder_model()(var_x)
 
         if self._config["bottleneck_in_encoder"]:
-            var_x = _bottleneck(var_x,
-                                self._config["bottleneck_type"],
-                                self._config["bottleneck_size"],
-                                self._config["bottleneck_norm"])
+            var_x = _bottleneck(
+                var_x,
+                self._config["bottleneck_type"],
+                self._config["bottleneck_size"],
+                self._config["bottleneck_norm"],
+            )
 
         return KerasModel(input_, var_x, name="encoder")
 
     def _get_encoder_model(self) -> keras.models.Model:
-        """ Return the model defined by the selected architecture.
+        """Return the model defined by the selected architecture.
 
         Returns
         -------
@@ -763,14 +983,15 @@ class Encoder():  # pylint:disable=too-few-public-methods
         return retval
 
 
-class _EncoderFaceswap():  # pylint:disable=too-few-public-methods
-    """ A configurable standard Faceswap encoder based off Original model.
+class _EncoderFaceswap:  # pylint:disable=too-few-public-methods
+    """A configurable standard Faceswap encoder based off Original model.
 
     Parameters
     ----------
     config: dict
         The model configuration options
     """
+
     def __init__(self, config: dict) -> None:
         self._config = config
         self._type = self._config["enc_architecture"]
@@ -783,7 +1004,7 @@ class _EncoderFaceswap():  # pylint:disable=too-few-public-methods
         self._strides = 1 if self._is_alt else 2
 
     def __call__(self, inputs: Tensor) -> Tensor:
-        """ Call the original Faceswap Encoder
+        """Call the original Faceswap Encoder
 
         Parameters
         ----------
@@ -799,38 +1020,46 @@ class _EncoderFaceswap():  # pylint:disable=too-few-public-methods
         filters = self._config["fs_original_min_filters"]
 
         if self._is_alt:
-            var_x = Conv2DBlock(filters,
-                                kernel_size=1,
-                                strides=self._strides,
-                                relu_alpha=self._relu_alpha)(var_x)
+            var_x = Conv2DBlock(
+                filters,
+                kernel_size=1,
+                strides=self._strides,
+                relu_alpha=self._relu_alpha,
+            )(var_x)
 
         for i in range(self._depth):
             name = f"fs_{'dny_' if self._is_alt else ''}enc"
-            var_x = Conv2DBlock(filters,
-                                kernel_size=self._kernel_size,
-                                strides=self._strides,
-                                relu_alpha=self._relu_alpha,
-                                name=f"{name}_convblk_{i}")(var_x)
+            var_x = Conv2DBlock(
+                filters,
+                kernel_size=self._kernel_size,
+                strides=self._strides,
+                relu_alpha=self._relu_alpha,
+                name=f"{name}_convblk_{i}",
+            )(var_x)
             filters = min(self._config["fs_original_max_filters"], filters * 2)
             if self._is_alt and i == self._depth - 1:
-                var_x = Conv2DBlock(filters,
-                                    kernel_size=4,
-                                    strides=self._strides,
-                                    padding="valid",
-                                    relu_alpha=self._relu_alpha,
-                                    name=f"{name}_convblk_{i}_1")(var_x)
+                var_x = Conv2DBlock(
+                    filters,
+                    kernel_size=4,
+                    strides=self._strides,
+                    padding="valid",
+                    relu_alpha=self._relu_alpha,
+                    name=f"{name}_convblk_{i}_1",
+                )(var_x)
             elif self._is_alt:
-                var_x = Conv2DBlock(filters,
-                                    kernel_size=self._kernel_size,
-                                    strides=self._strides,
-                                    relu_alpha=self._relu_alpha,
-                                    name=f"{name}_convblk_{i}_1")(var_x)
+                var_x = Conv2DBlock(
+                    filters,
+                    kernel_size=self._kernel_size,
+                    strides=self._strides,
+                    relu_alpha=self._relu_alpha,
+                    name=f"{name}_convblk_{i}_1",
+                )(var_x)
                 var_x = MaxPool2D(2, name=f"{name}_pool_{i}")(var_x)
         return var_x
 
 
-class FullyConnected():  # pylint:disable=too-few-public-methods
-    """ Intermediate Fully Connected layers for Phaze-A Model.
+class FullyConnected:  # pylint:disable=too-few-public-methods
+    """Intermediate Fully Connected layers for Phaze-A Model.
 
     Parameters
     ----------
@@ -841,26 +1070,40 @@ class FullyConnected():  # pylint:disable=too-few-public-methods
     config: dict
         The user configuration dictionary
     """
-    def __init__(self,
-                 side: Literal["a", "b", "both", "gblock", "shared"],
-                 input_shape: tuple,
-                 config: dict) -> None:
-        logger.debug("Initializing: %s (side: %s, input_shape: %s)",
-                     self.__class__.__name__, side, input_shape)
+
+    def __init__(
+        self,
+        side: Literal["a", "b", "both", "gblock", "shared"],
+        input_shape: tuple,
+        config: dict,
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (side: %s, input_shape: %s)",
+            self.__class__.__name__,
+            side,
+            input_shape,
+        )
         self._side = side
         self._input_shape = input_shape
         self._config = config
-        self._final_dims = self._config["fc_dimensions"] * (self._config["fc_upsamples"] + 1)
+        self._final_dims = self._config["fc_dimensions"] * (
+            self._config["fc_upsamples"] + 1
+        )
         self._prefix = "fc_gblock" if self._side == "gblock" else "fc"
 
-        logger.debug("Initialized: %s (side: %s, min_nodes: %s, max_nodes: %s)",
-                     self.__class__.__name__, self._side, self._min_nodes, self._max_nodes)
+        logger.debug(
+            "Initialized: %s (side: %s, min_nodes: %s, max_nodes: %s)",
+            self.__class__.__name__,
+            self._side,
+            self._min_nodes,
+            self._max_nodes,
+        )
 
     @property
     def _min_nodes(self) -> int:
-        """ int: The number of nodes for the first Dense. For non g-block layers this will be the
+        """int: The number of nodes for the first Dense. For non g-block layers this will be the
         given minimum filters multiplied by the dimensions squared. For g-block layers, this is the
-        given value """
+        given value"""
         if self._side == "gblock":
             return self._config["fc_gblock_min_nodes"]
         retval = self._scale_filters(self._config["fc_min_filters"])
@@ -869,7 +1112,7 @@ class FullyConnected():  # pylint:disable=too-few-public-methods
 
     @property
     def _max_nodes(self) -> int:
-        """ int: The number of nodes for the final Dense. For non g-block layers this will be the
+        """int: The number of nodes for the final Dense. For non g-block layers this will be the
         given maximum filters multiplied by the dimensions squared. This number will be scaled down
         if the final shape can not be mapped to the requested output size.
 
@@ -882,7 +1125,7 @@ class FullyConnected():  # pylint:disable=too-few-public-methods
         return retval
 
     def _scale_filters(self, original_filters: int) -> int:
-        """ Scale the filters to be compatible with the model's selected output size.
+        """Scale the filters to be compatible with the model's selected output size.
 
         Parameters
         ----------
@@ -896,18 +1139,22 @@ class FullyConnected():  # pylint:disable=too-few-public-methods
         """
         scaled_dim = _scale_dim(self._config["output_size"], self._final_dims)
         if scaled_dim == self._final_dims:
-            logger.debug("filters don't require scaling. Returning: %s", original_filters)
+            logger.debug(
+                "filters don't require scaling. Returning: %s", original_filters
+            )
             return original_filters
 
-        flat = self._final_dims ** 2 * original_filters
-        modifier = self._final_dims ** 2 * scaled_dim ** 2
+        flat = self._final_dims**2 * original_filters
+        modifier = self._final_dims**2 * scaled_dim**2
         retval = int((flat // modifier) * modifier)
-        retval = int(retval / self._final_dims ** 2)
-        logger.debug("original_filters: %s, scaled_filters: %s", original_filters, retval)
+        retval = int(retval / self._final_dims**2)
+        logger.debug(
+            "original_filters: %s, scaled_filters: %s", original_filters, retval
+        )
         return retval
 
     def _do_upsampling(self, inputs: Tensor) -> Tensor:
-        """ Perform the upsampling at the end of the fully connected layers.
+        """Perform the upsampling at the end of the fully connected layers.
 
         Parameters
         ----------
@@ -924,23 +1171,25 @@ class FullyConnected():  # pylint:disable=too-few-public-methods
         num_upsamples = self._config["fc_upsamples"]
         var_x = inputs
         if upsampler == "upsample2d" and num_upsamples > 1:
-            upscaler = _get_upscale_layer(upsampler,
-                                          upsample_filts,  # Not used but required
-                                          upsamples=2 ** num_upsamples,
-                                          interpolation="bilinear")
+            upscaler = _get_upscale_layer(
+                upsampler,
+                upsample_filts,  # Not used but required
+                upsamples=2**num_upsamples,
+                interpolation="bilinear",
+            )
             var_x = upscaler(var_x)
         else:
             for _ in range(num_upsamples):
-                upscaler = _get_upscale_layer(upsampler,
-                                              upsample_filts,
-                                              activation="leakyrelu")
+                upscaler = _get_upscale_layer(
+                    upsampler, upsample_filts, activation="leakyrelu"
+                )
                 var_x = upscaler(var_x)
         if upsampler == "upsample2d":
             var_x = LeakyReLU(alpha=0.1)(var_x)
         return var_x
 
     def __call__(self) -> keras.models.Model:
-        """ Call the intermediate layer.
+        """Call the intermediate layer.
 
         Returns
         -------
@@ -950,16 +1199,20 @@ class FullyConnected():  # pylint:disable=too-few-public-methods
         input_ = Input(shape=self._input_shape)
         var_x = input_
 
-        node_curve = _get_curve(self._min_nodes,
-                                self._max_nodes,
-                                self._config[f"{self._prefix}_depth"],
-                                self._config[f"{self._prefix}_filter_slope"])
+        node_curve = _get_curve(
+            self._min_nodes,
+            self._max_nodes,
+            self._config[f"{self._prefix}_depth"],
+            self._config[f"{self._prefix}_filter_slope"],
+        )
 
         if not self._config["bottleneck_in_encoder"]:
-            var_x = _bottleneck(var_x,
-                                self._config["bottleneck_type"],
-                                self._config["bottleneck_size"],
-                                self._config["bottleneck_norm"])
+            var_x = _bottleneck(
+                var_x,
+                self._config["bottleneck_type"],
+                self._config["bottleneck_size"],
+                self._config["bottleneck_norm"],
+            )
 
         dropout = f"{self._prefix}_dropout"
         for idx, nodes in enumerate(node_curve):
@@ -968,20 +1221,20 @@ class FullyConnected():  # pylint:disable=too-few-public-methods
 
         if self._side != "gblock":
             dim = self._config["fc_dimensions"]
-            var_x = Reshape((dim, dim, int(self._max_nodes / (dim ** 2))))(var_x)
+            var_x = Reshape((dim, dim, int(self._max_nodes / (dim**2))))(var_x)
             var_x = self._do_upsampling(var_x)
 
             num_upscales = self._config["dec_upscales_in_fc"]
             if num_upscales:
-                var_x = UpscaleBlocks(self._side,
-                                      self._config,
-                                      layer_indicies=(0, num_upscales))(var_x)
+                var_x = UpscaleBlocks(
+                    self._side, self._config, layer_indicies=(0, num_upscales)
+                )(var_x)
 
         return KerasModel(input_, var_x, name=f"fc_{self._side}")
 
 
-class UpscaleBlocks():  # pylint: disable=too-few-public-methods
-    """ Obtain a block of upscalers.
+class UpscaleBlocks:  # pylint: disable=too-few-public-methods
+    """Obtain a block of upscalers.
 
     This class exists outside of the :class:`Decoder` model, as it is possible to place some of
     the upscalers at the end of the Fully Connected Layers, so the upscale chain needs to be able
@@ -1002,22 +1255,32 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         and the Decoder. ``None`` will generate the full Upscale chain. An end index of -1 will
         generate the layers from the starting index to the final upscale. Default: ``None``
     """
-    _filters: List[int] = []
 
-    def __init__(self,
-                 side: Literal["a", "b", "both", "shared"],
-                 config: dict,
-                 layer_indicies: Optional[Tuple[int, int]] = None) -> None:
-        logger.debug("Initializing: %s (side: %s, layer_indicies: %s)",
-                     self.__class__.__name__, side, layer_indicies)
+    _filters: list[int] = []
+
+    def __init__(
+        self,
+        side: Literal["a", "b", "both", "shared"],
+        config: dict,
+        layer_indicies: tuple[int, int] | None = None,
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (side: %s, layer_indicies: %s)",
+            self.__class__.__name__,
+            side,
+            layer_indicies,
+        )
         self._side = side
         self._config = config
         self._is_dny = self._config["dec_upscale_method"].lower() == "upscale_dny"
         self._layer_indicies = layer_indicies
-        logger.debug("Initialized: %s", self.__class__.__name__,)
+        logger.debug(
+            "Initialized: %s",
+            self.__class__.__name__,
+        )
 
     def _reshape_for_output(self, inputs: Tensor) -> Tensor:
-        """ Reshape the input for arbitrary output sizes.
+        """Reshape the input for arbitrary output sizes.
 
         The number of filters in the input will have been scaled to the model output size allowing
         us to scale the dimensions to the requested output size.
@@ -1037,18 +1300,24 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         new_dim = _scale_dim(self._config["output_size"], old_dim)
         if new_dim != old_dim:
             old_shape = K.int_shape(inputs)[1:]
-            new_shape = (new_dim, new_dim, np.prod(old_shape) // new_dim ** 2)
-            logger.debug("Reshaping tensor from %s to %s for output size %s",
-                         K.int_shape(inputs)[1:], new_shape, self._config["output_size"])
+            new_shape = (new_dim, new_dim, np.prod(old_shape) // new_dim**2)
+            logger.debug(
+                "Reshaping tensor from %s to %s for output size %s",
+                K.int_shape(inputs)[1:],
+                new_shape,
+                self._config["output_size"],
+            )
             var_x = Reshape(new_shape)(var_x)
         return var_x
 
-    def _upscale_block(self,
-                       inputs: Tensor,
-                       filters: int,
-                       skip_residual: bool = False,
-                       is_mask: bool = False) -> Tensor:
-        """ Upscale block for Phaze-A Decoder.
+    def _upscale_block(
+        self,
+        inputs: Tensor,
+        filters: int,
+        skip_residual: bool = False,
+        is_mask: bool = False,
+    ) -> Tensor:
+        """Upscale block for Phaze-A Decoder.
 
         Uses requested upscale method, adds requested regularization and activation function.
 
@@ -1069,11 +1338,13 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         tensor
             The output tensor from the upscale block
         """
-        upscaler = _get_upscale_layer(self._config["dec_upscale_method"].lower(),
-                                      filters,
-                                      activation="leakyrelu",
-                                      upsamples=2,
-                                      interpolation="bilinear")
+        upscaler = _get_upscale_layer(
+            self._config["dec_upscale_method"].lower(),
+            filters,
+            activation="leakyrelu",
+            upsamples=2,
+            interpolation="bilinear",
+        )
 
         var_x = upscaler(inputs)
         if not is_mask and self._config["dec_gaussian"]:
@@ -1090,7 +1361,7 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         return var_x
 
     def _normalization(self, inputs: Tensor) -> Tensor:
-        """ Add a normalization layer if requested.
+        """Add a normalization layer if requested.
 
         Parameters
         ----------
@@ -1104,15 +1375,17 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         """
         if not self._config["dec_norm"]:
             return inputs
-        norms = dict(batch=BatchNormalization,
-                     group=GroupNormalization,
-                     instance=InstanceNormalization,
-                     layer=LayerNormalization,
-                     rms=RMSNormalization)
+        norms = dict(
+            batch=BatchNormalization,
+            group=GroupNormalization,
+            instance=InstanceNormalization,
+            layer=LayerNormalization,
+            rms=RMSNormalization,
+        )
         return norms[self._config["dec_norm"]]()(inputs)
 
     def _dny_entry(self, inputs: Tensor) -> Tensor:
-        """ Entry convolutions for using the upscale_dny method.
+        """Entry convolutions for using the upscale_dny method.
 
         Parameters
         ----------
@@ -1124,20 +1397,24 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         Tensor
             The output from the dny entry block
         """
-        var_x = Conv2DBlock(self._config["dec_max_filters"],
-                            kernel_size=4,
-                            strides=1,
-                            padding="same",
-                            relu_alpha=0.2)(inputs)
-        var_x = Conv2DBlock(self._config["dec_max_filters"],
-                            kernel_size=3,
-                            strides=1,
-                            padding="same",
-                            relu_alpha=0.2)(var_x)
+        var_x = Conv2DBlock(
+            self._config["dec_max_filters"],
+            kernel_size=4,
+            strides=1,
+            padding="same",
+            relu_alpha=0.2,
+        )(inputs)
+        var_x = Conv2DBlock(
+            self._config["dec_max_filters"],
+            kernel_size=3,
+            strides=1,
+            padding="same",
+            relu_alpha=0.2,
+        )(var_x)
         return var_x
 
-    def __call__(self, inputs: Union[Tensor, List[Tensor]]) -> Union[Tensor, List[Tensor]]:
-        """ Upscale Network.
+    def __call__(self, inputs: Tensor | list[Tensor]) -> Tensor | list[Tensor]:
+        """Upscale Network.
 
         Parameters
         inputs: Tensor or list of tensors
@@ -1152,7 +1429,9 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
             The output of encoder blocks. Either a single tensor (if learn mask is not enabled) or
             list of tensors (if learn mask is enabled)
         """
-        start_idx, end_idx = (0, None) if self._layer_indicies is None else self._layer_indicies
+        start_idx, end_idx = (
+            (0, None) if self._layer_indicies is None else self._layer_indicies
+        )
         end_idx = None if end_idx == -1 else end_idx
 
         if self._config["learn_mask"] and start_idx == 0:
@@ -1180,17 +1459,23 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         # De-convolve
         if not self._filters:
             upscales = int(np.log2(self._config["output_size"] / K.int_shape(var_x)[1]))
-            self._filters.extend(_get_curve(self._config["dec_max_filters"],
-                                            self._config["dec_min_filters"],
-                                            upscales,
-                                            self._config["dec_filter_slope"],
-                                            mode=self._config["dec_slope_mode"]))
+            self._filters.extend(
+                _get_curve(
+                    self._config["dec_max_filters"],
+                    self._config["dec_min_filters"],
+                    upscales,
+                    self._config["dec_filter_slope"],
+                    mode=self._config["dec_slope_mode"],
+                )
+            )
             logger.debug("Generated class filters: %s", self._filters)
 
-        filters = self._filters[start_idx: end_idx]
+        filters = self._filters[start_idx:end_idx]
 
         for idx, filts in enumerate(filters):
-            skip_res = idx == len(filters) - 1 and self._config["dec_skip_last_residual"]
+            skip_res = (
+                idx == len(filters) - 1 and self._config["dec_skip_last_residual"]
+            )
             var_x = self._upscale_block(var_x, filts, skip_residual=skip_res)
             if self._config["learn_mask"]:
                 var_y = self._upscale_block(var_y, filts, is_mask=True)
@@ -1198,8 +1483,8 @@ class UpscaleBlocks():  # pylint: disable=too-few-public-methods
         return retval
 
 
-class GBlock():  # pylint:disable=too-few-public-methods
-    """ G-Block model, borrowing from Adain StyleGAN.
+class GBlock:  # pylint:disable=too-few-public-methods
+    """G-Block model, borrowing from Adain StyleGAN.
 
     Parameters
     ----------
@@ -1212,12 +1497,19 @@ class GBlock():  # pylint:disable=too-few-public-methods
     config: dict
         The user configuration dictionary
     """
-    def __init__(self,
-                 side: Literal["a", "b", "both"],
-                 input_shapes: Union[list, tuple],
-                 config: dict) -> None:
-        logger.debug("Initializing: %s (side: %s, input_shapes: %s)",
-                     self.__class__.__name__, side, input_shapes)
+
+    def __init__(
+        self,
+        side: Literal["a", "b", "both"],
+        input_shapes: list | tuple,
+        config: dict,
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (side: %s, input_shapes: %s)",
+            self.__class__.__name__,
+            side,
+            input_shapes,
+        )
         self._side = side
         self._config = config
         self._inputs = [Input(shape=shape) for shape in input_shapes]
@@ -1226,8 +1518,10 @@ class GBlock():  # pylint:disable=too-few-public-methods
         logger.debug("Initialized: %s", self.__class__.__name__)
 
     @classmethod
-    def _g_block(cls, inputs: Tensor, style: Tensor, filters: int, recursions: int = 2) -> Tensor:
-        """ G_block adapted from ADAIN StyleGAN.
+    def _g_block(
+        cls, inputs: Tensor, style: Tensor, filters: int, recursions: int = 2
+    ) -> Tensor:
+        """G_block adapted from ADAIN StyleGAN.
 
         Parameters
         ----------
@@ -1260,7 +1554,7 @@ class GBlock():  # pylint:disable=too-few-public-methods
         return var_x
 
     def __call__(self) -> keras.models.Model:
-        """ G-Block Network.
+        """G-Block Network.
 
         Returns
         -------
@@ -1281,8 +1575,8 @@ class GBlock():  # pylint:disable=too-few-public-methods
         return KerasModel(self._inputs, var_x, name=f"g_block_{self._side}")
 
 
-class Decoder():  # pylint:disable=too-few-public-methods
-    """ Decoder Network.
+class Decoder:  # pylint:disable=too-few-public-methods
+    """Decoder Network.
 
     Parameters
     ----------
@@ -1293,19 +1587,29 @@ class Decoder():  # pylint:disable=too-few-public-methods
     config: dict
         The user configuration dictionary
     """
-    def __init__(self,
-                 side: Literal["a", "b", "both"],
-                 input_shape: Tuple[int, int, int],
-                 config: dict) -> None:
-        logger.debug("Initializing: %s (side: %s, input_shape: %s)",
-                     self.__class__.__name__, side, input_shape)
+
+    def __init__(
+        self,
+        side: Literal["a", "b", "both"],
+        input_shape: tuple[int, int, int],
+        config: dict,
+    ) -> None:
+        logger.debug(
+            "Initializing: %s (side: %s, input_shape: %s)",
+            self.__class__.__name__,
+            side,
+            input_shape,
+        )
         self._side = side
         self._input_shape = input_shape
         self._config = config
-        logger.debug("Initialized: %s", self.__class__.__name__,)
+        logger.debug(
+            "Initialized: %s",
+            self.__class__.__name__,
+        )
 
     def __call__(self) -> keras.models.Model:
-        """ Decoder Network.
+        """Decoder Network.
 
         Returns
         -------
@@ -1321,19 +1625,23 @@ class Decoder():  # pylint:disable=too-few-public-methods
             inputs = [inputs, Input(shape=self._input_shape)]
 
         indicies = None if not num_ups_in_fc else (num_ups_in_fc, -1)
-        upscales = UpscaleBlocks(self._side,
-                                 self._config,
-                                 layer_indicies=indicies)(inputs)
+        upscales = UpscaleBlocks(self._side, self._config, layer_indicies=indicies)(
+            inputs
+        )
 
         if self._config["learn_mask"]:
             var_x, var_y = upscales
         else:
             var_x = upscales
 
-        outputs = [Conv2DOutput(3, self._config["dec_output_kernel"], name="face_out")(var_x)]
+        outputs = [
+            Conv2DOutput(3, self._config["dec_output_kernel"], name="face_out")(var_x)
+        ]
         if self._config["learn_mask"]:
-            outputs.append(Conv2DOutput(1,
-                                        self._config["dec_output_kernel"],
-                                        name="mask_out")(var_y))
+            outputs.append(
+                Conv2DOutput(1, self._config["dec_output_kernel"], name="mask_out")(
+                    var_y
+                )
+            )
 
         return KerasModel(inputs, outputs=outputs, name=f"decoder_{self._side}")

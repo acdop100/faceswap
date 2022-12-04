@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """ Custom Optimizers for PlaidML/Keras 2.2. """
+from __future__ import annotations
+
 import inspect
 import sys
 
 from keras import backend as K
-from keras.optimizers import Optimizer, Adam, Nadam, RMSprop  # noqa pylint:disable=unused-import
+from keras.optimizers import Adam
+from keras.optimizers import Nadam
+from keras.optimizers import Optimizer
+from keras.optimizers import RMSprop
 from keras.utils import get_custom_objects
 
 
@@ -62,15 +67,23 @@ class AdaBelief(Optimizer):
 
     """
 
-    def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999,
-                 epsilon=None, decay=0., weight_decay=0.0, **kwargs):
+    def __init__(
+        self,
+        lr=0.001,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=None,
+        decay=0.0,
+        weight_decay=0.0,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         with K.name_scope(self.__class__.__name__):
-            self.iterations = K.variable(0, dtype='int64', name='iterations')
-            self.lr = K.variable(lr, name='lr')
-            self.beta_1 = K.variable(beta_1, name='beta_1')
-            self.beta_2 = K.variable(beta_2, name='beta_2')
-            self.decay = K.variable(decay, name='decay')
+            self.iterations = K.variable(0, dtype="int64", name="iterations")
+            self.lr = K.variable(lr, name="lr")
+            self.beta_1 = K.variable(beta_1, name="beta_1")
+            self.beta_2 = K.variable(beta_2, name="beta_2")
+            self.decay = K.variable(decay, name="decay")
         if epsilon is None:
             epsilon = K.epsilon()
         self.epsilon = float(epsilon)
@@ -78,7 +91,7 @@ class AdaBelief(Optimizer):
         self.weight_decay = float(weight_decay)
 
     def get_updates(self, loss, params):  # pylint:disable=too-many-locals
-        """ Get the weight updates
+        """Get the weight updates
 
         Parameters
         ----------
@@ -92,13 +105,14 @@ class AdaBelief(Optimizer):
 
         l_r = self.lr
         if self.initial_decay > 0:
-            l_r = l_r * (1. / (1. + self.decay * K.cast(self.iterations,
-                                                        K.dtype(self.decay))))
+            l_r = l_r * (
+                1.0 / (1.0 + self.decay * K.cast(self.iterations, K.dtype(self.decay)))
+            )
 
         var_t = K.cast(self.iterations, K.floatx()) + 1
         # bias correction
-        bias_correction1 = 1. - K.pow(self.beta_1, var_t)
-        bias_correction2 = 1. - K.pow(self.beta_2, var_t)
+        bias_correction1 = 1.0 - K.pow(self.beta_1, var_t)
+        bias_correction2 = 1.0 - K.pow(self.beta_2, var_t)
 
         m_s = [K.zeros(K.int_shape(p), dtype=K.dtype(p)) for p in params]
         v_s = [K.zeros(K.int_shape(p), dtype=K.dtype(p)) for p in params]
@@ -106,13 +120,17 @@ class AdaBelief(Optimizer):
         self.weights = [self.iterations] + m_s + v_s
 
         for param, grad, var_m, var_v in zip(params, grads, m_s, v_s):
-            if self.weight_decay != 0.:
+            if self.weight_decay != 0.0:
                 grad += self.weight_decay * K.stop_gradient(param)
 
-            m_t = (self.beta_1 * var_m) + (1. - self.beta_1) * grad
+            m_t = (self.beta_1 * var_m) + (1.0 - self.beta_1) * grad
             m_corr_t = m_t / bias_correction1
 
-            v_t = (self.beta_2 * var_v) + (1. - self.beta_2) * K.square(grad - m_t) + self.epsilon
+            v_t = (
+                (self.beta_2 * var_v)
+                + (1.0 - self.beta_2) * K.square(grad - m_t)
+                + self.epsilon
+            )
             v_corr_t = K.sqrt(v_t / bias_correction2)
 
             p_t = param - l_r * m_corr_t / (v_corr_t + self.epsilon)
@@ -122,14 +140,14 @@ class AdaBelief(Optimizer):
             new_param = p_t
 
             # Apply constraints.
-            if getattr(param, 'constraint', None) is not None:
+            if getattr(param, "constraint", None) is not None:
                 new_param = param.constraint(new_param)
 
             self.updates.append(K.update(param, new_param))
         return self.updates
 
     def get_config(self):
-        """ Returns the config of the optimizer.
+        """Returns the config of the optimizer.
 
         An optimizer config is a Python dictionary (serializable) containing the configuration of
         an optimizer. The same optimizer can be re-instantiated later (without any saved state)
@@ -140,12 +158,14 @@ class AdaBelief(Optimizer):
         dict
             The optimizer configuration.
         """
-        config = dict(lr=float(K.get_value(self.lr)),
-                      beta_1=float(K.get_value(self.beta_1)),
-                      beta_2=float(K.get_value(self.beta_2)),
-                      decay=float(K.get_value(self.decay)),
-                      epsilon=self.epsilon,
-                      weight_decay=self.weight_decay)
+        config = dict(
+            lr=float(K.get_value(self.lr)),
+            beta_1=float(K.get_value(self.beta_1)),
+            beta_2=float(K.get_value(self.beta_2)),
+            decay=float(K.get_value(self.decay)),
+            epsilon=self.epsilon,
+            weight_decay=self.weight_decay,
+        )
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 

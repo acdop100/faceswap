@@ -207,4 +207,3 @@ msgstr ""
 #: tools/manual\frameviewer\frame.py:487
 msgid "Copy {} Alignments ({})"
 msgstr ""
-

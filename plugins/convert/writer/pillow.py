@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """ Image output writer for faceswap.py converter """
+from __future__ import annotations
 
-from typing import Dict, List, Union
 from io import BytesIO
-from PIL import Image
+from typing import Dict
+from typing import List
+from typing import Union
 
 import numpy as np
+from PIL import Image
 
-from ._base import Output, logger
+from ._base import logger
+from ._base import Output
 
 
 class Writer(Output):
-    """ Images output writer using Pillow
+    """Images output writer using Pillow
 
     Parameters
     ----------
@@ -21,25 +25,30 @@ class Writer(Output):
         The full path to a custom configuration ini file. If ``None`` is passed
         then the file is loaded from the default location. Default: ``None``.
     """
+
     def __init__(self, output_folder: str, **kwargs) -> None:
         super().__init__(output_folder, **kwargs)
         self._check_transparency_format()
         # Correct format namings for writing to byte stream
         self._format_dict = dict(jpg="JPEG", jp2="JPEG 2000", tif="TIFF")
-        self._separate_mask = self.config["draw_transparent"] and self.config["separate_mask"]
+        self._separate_mask = (
+            self.config["draw_transparent"] and self.config["separate_mask"]
+        )
         self._kwargs = self._get_save_kwargs()
 
     def _check_transparency_format(self) -> None:
-        """ Make sure that the output format is correct if draw_transparent is selected """
+        """Make sure that the output format is correct if draw_transparent is selected"""
         transparent = self.config["draw_transparent"]
         if not transparent or (transparent and self.config["format"] in ("png", "tif")):
             return
-        logger.warning("Draw Transparent selected, but the requested format does not support "
-                       "transparency. Changing output format to 'png'")
+        logger.warning(
+            "Draw Transparent selected, but the requested format does not support "
+            "transparency. Changing output format to 'png'"
+        )
         self.config["format"] = "png"
 
-    def _get_save_kwargs(self) -> Dict[str, Union[bool, int, str]]:
-        """ Return the save parameters for the file format
+    def _get_save_kwargs(self) -> dict[str, bool | int | str]:
+        """Return the save parameters for the file format
 
         Returns
         -------
@@ -59,8 +68,8 @@ class Writer(Output):
         logger.debug(kwargs)
         return kwargs
 
-    def write(self, filename: str, image: List[BytesIO]) -> None:
-        """ Write out the pre-encoded image to disk. If separate mask has been selected, write out
+    def write(self, filename: str, image: list[BytesIO]) -> None:
+        """Write out the pre-encoded image to disk. If separate mask has been selected, write out
         the encoded mask to a sub-folder in the output directory.
 
         Parameters
@@ -80,8 +89,8 @@ class Writer(Output):
         except Exception as err:  # pylint: disable=broad-except
             logger.error("Failed to save image '%s'. Original Error: %s", filename, err)
 
-    def pre_encode(self, image: np.ndarray) -> List[BytesIO]:
-        """ Pre_encode the image in lib/convert.py threads as it is a LOT quicker
+    def pre_encode(self, image: np.ndarray) -> list[BytesIO]:
+        """Pre_encode the image in lib/convert.py threads as it is a LOT quicker
 
         Parameters
         ----------
@@ -94,7 +103,7 @@ class Writer(Output):
             List of :class:`BytesIO` objects ready for writing. The list will be of length 1 with
             image bytes object as the only member unless separate mask has been requested, in which
             case it will be length 2 with the image in position 0 and mask in position 1
-         """
+        """
         logger.trace("Pre-encoding image")  # type:ignore
 
         if self._separate_mask:
@@ -112,7 +121,7 @@ class Writer(Output):
         return retval
 
     def _encode_image(self, image: np.ndarray) -> BytesIO:
-        """ Encode an image in the correct format as a bytes object for saving
+        """Encode an image in the correct format as a bytes object for saving
 
         Parameters
         ----------
@@ -124,7 +133,9 @@ class Writer(Output):
         :class:`BytesIO`
             The image as a bytes object ready for writing to disk
         """
-        fmt = self._format_dict.get(self.config["format"], self.config["format"].upper())
+        fmt = self._format_dict.get(
+            self.config["format"], self.config["format"].upper()
+        )
         encoded = BytesIO()
         out_image = Image.fromarray(image)
         out_image.save(encoded, fmt, **self._kwargs)
@@ -132,5 +143,5 @@ class Writer(Output):
         return encoded
 
     def close(self) -> None:
-        """ Does nothing as Pillow writer does not need a close method """
+        """Does nothing as Pillow writer does not need a close method"""
         return

@@ -41,6 +41,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
@@ -54,7 +55,7 @@ _DEFAULTS = {
     "minsize": dict(
         default=20,
         info="The minimum size of a face (in pixels) to be accepted as a positive match.\nLower "
-             "values use significantly more VRAM and will detect more false positives.",
+        "values use significantly more VRAM and will detect more false positives.",
         datatype=int,
         rounding=10,
         min_max=(20, 1000),
@@ -77,9 +78,9 @@ _DEFAULTS = {
     "batch-size": dict(
         default=8,
         info="The batch size to use. To a point, higher batch sizes equal better performance, but "
-             "setting it too high can harm performance.\n"
-             "\n\tNvidia users: If the batchsize is set higher than the your GPU can accomodate "
-             "then this will automatically be lowered.",
+        "setting it too high can harm performance.\n"
+        "\n\tNvidia users: If the batchsize is set higher than the your GPU can accomodate "
+        "then this will automatically be lowered.",
         datatype=int,
         rounding=1,
         min_max=(1, 64),
@@ -91,10 +92,11 @@ _DEFAULTS = {
     "cpu": dict(
         default=True,
         info="[Nvidia Only] MTCNN detector still runs fairly quickly on CPU on some setups. "
-             "Enable CPU mode here to use the CPU for this detector to save some VRAM at a speed "
-             "cost.",
+        "Enable CPU mode here to use the CPU for this detector to save some VRAM at a speed "
+        "cost.",
         datatype=bool,
-        group="settings"),
+        group="settings",
+    ),
     "threshold_1": dict(
         default=0.6,
         info="First stage threshold for face detection. This stage obtains face candidates.",
@@ -120,7 +122,7 @@ _DEFAULTS = {
     "threshold_3": dict(
         default=0.7,
         info="Third stage threshold for face detection. This stage further refines face "
-             "candidates.",
+        "candidates.",
         datatype=float,
         rounding=2,
         min_max=(0.1, 0.9),

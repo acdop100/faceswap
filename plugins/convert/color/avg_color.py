@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """ Average colour adjustment color matching adjustment plugin for faceswap.py converter """
+from __future__ import annotations
 
 import numpy as np
+
 from ._base import Adjustment
 
 
 class Color(Adjustment):
-    """ Adjust the mean of the color channels to be the same for the swap and old frame """
+    """Adjust the mean of the color channels to be the same for the swap and old frame"""
 
     def process(self, old_face, new_face, raw_mask):
         for _ in [0, 1]:

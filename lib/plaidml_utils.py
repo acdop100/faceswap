@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """ PlaidML helper Utilities """
+from __future__ import annotations
+
 from typing import Optional
 
 import plaidml
 
 
-def pad(data: plaidml.tile.Value,
-        paddings,
-        mode: str = "CONSTANT",
-        name: Optional[str] = None,  # pylint:disable=unused-argument
-        constant_value: int = 0) -> plaidml.tile.Value:
-    """ PlaidML Pad
+def pad(
+    data: plaidml.tile.Value,
+    paddings,
+    mode: str = "CONSTANT",
+    name: str | None = None,  # pylint:disable=unused-argument
+    constant_value: int = 0,
+) -> plaidml.tile.Value:
+    """PlaidML Pad
 
     Notes
     -----
@@ -44,7 +48,7 @@ def pad(data: plaidml.tile.Value,
 
 
 def is_plaidml_error(error: Exception) -> bool:
-    """ Test whether the given exception is a plaidml Exception.
+    """Test whether the given exception is a plaidml Exception.
 
     Parameters
     ----------

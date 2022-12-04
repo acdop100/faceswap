@@ -39,16 +39,19 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
-_HELPTEXT = "Options for matching the histograms between the source and destination faces"
+_HELPTEXT = (
+    "Options for matching the histograms between the source and destination faces"
+)
 
 
 _DEFAULTS = dict(
     threshold=dict(
         default=99.0,
         info="Adjust the threshold for histogram matching. Can reduce extreme colors leaking in "
-             "by filtering out colors at the extreme ends of the histogram spectrum.",
+        "by filtering out colors at the extreme ends of the histogram spectrum.",
         datatype=float,
         rounding=1,
         min_max=(90.0, 100.0),

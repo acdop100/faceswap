@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 """ Miscellaneous Utility functions for the GUI. Includes LongRunningTask object """
+from __future__ import annotations
+
 import logging
 import sys
-
-from threading import Event, Thread
-from typing import (Any, Callable, cast, Dict, Optional, Tuple, Type, TYPE_CHECKING)
 from queue import Queue
+from threading import Event
+from threading import Thread
+from typing import Any
+from typing import Callable
+from typing import cast
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+from typing import Type
+from typing import TYPE_CHECKING
 
 from .config import get_config
 
@@ -18,7 +27,7 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class LongRunningTask(Thread):
-    """ Runs long running tasks in a background thread to prevent the GUI from becoming
+    """Runs long running tasks in a background thread to prevent the GUI from becoming
     unresponsive.
 
     This is sub-classed from :class:`Threading.Thread` so check documentation there for base
@@ -30,51 +39,70 @@ class LongRunningTask(Thread):
         The widget that this :class:`LongRunningTask` is associated with. Used for setting the busy
         cursor in the correct location. Default: ``None``.
     """
+
     _target: Callable
-    _args: Tuple
-    _kwargs: Dict[str, Any]
+    _args: tuple
+    _kwargs: dict[str, Any]
     _name: str
 
-    def __init__(self,
-                 target: Optional[Callable] = None,
-                 name: Optional[str] = None,
-                 args: Tuple = (),
-                 kwargs: Optional[Dict[str, Any]] = None,
-                 *,
-                 daemon: bool = True,
-                 widget=None):
-        logger.debug("Initializing %s: (target: %s, name: %s, args: %s, kwargs: %s, "
-                     "daemon: %s)", self.__class__.__name__, target, name, args, kwargs,
-                     daemon)
-        super().__init__(target=target, name=name, args=args, kwargs=kwargs,
-                         daemon=daemon)
-        self.err: "_ErrorType" = None
+    def __init__(
+        self,
+        target: Callable | None = None,
+        name: str | None = None,
+        args: tuple = (),
+        kwargs: dict[str, Any] | None = None,
+        *,
+        daemon: bool = True,
+        widget=None,
+    ):
+        logger.debug(
+            "Initializing %s: (target: %s, name: %s, args: %s, kwargs: %s, "
+            "daemon: %s)",
+            self.__class__.__name__,
+            target,
+            name,
+            args,
+            kwargs,
+            daemon,
+        )
+        super().__init__(
+            target=target, name=name, args=args, kwargs=kwargs, daemon=daemon
+        )
+        self.err: _ErrorType = None
         self._widget = widget
         self._config = get_config()
         self._config.set_cursor_busy(widget=self._widget)
         self._complete = Event()
         self._queue: Queue = Queue()
-        logger.debug("Initialized %s", self.__class__.__name__,)
+        logger.debug(
+            "Initialized %s",
+            self.__class__.__name__,
+        )
 
     @property
     def complete(self) -> Event:
-        """ :class:`threading.Event`:  Event is set if the thread has completed its task,
+        """:class:`threading.Event`:  Event is set if the thread has completed its task,
         otherwise it is unset.
         """
         return self._complete
 
     def run(self) -> None:
-        """ Commence the given task in a background thread. """
+        """Commence the given task in a background thread."""
         try:
             if self._target:
                 retval = self._target(*self._args, **self._kwargs)
                 self._queue.put(retval)
         except Exception:  # pylint: disable=broad-except
-            self.err = cast(Tuple[Type[BaseException], BaseException, "TracebackType"],
-                            sys.exc_info())
+            self.err = cast(
+                tuple[type[BaseException], BaseException, "TracebackType"],
+                sys.exc_info(),
+            )
             assert self.err is not None
-            logger.debug("Error in thread (%s): %s", self._name,
-                         self.err[1].with_traceback(self.err[2]))
+            logger.debug(
+                "Error in thread (%s): %s",
+                self._name,
+                self.err[1].with_traceback(self.err[2]),
+            )
         finally:
             self._complete.set()
             # Avoid a ref-cycle if the thread is running a function with
@@ -82,7 +110,7 @@ class LongRunningTask(Thread):
             del self._target, self._args, self._kwargs
 
     def get_result(self) -> Any:
-        """ Return the result from the given task.
+        """Return the result from the given task.
 
         Returns
         -------
@@ -92,8 +120,10 @@ class LongRunningTask(Thread):
             returned
         """
         if not self._complete.is_set():
-            logger.warning("Aborting attempt to retrieve result from a LongRunningTask that is "
-                           "still running")
+            logger.warning(
+                "Aborting attempt to retrieve result from a LongRunningTask that is "
+                "still running"
+            )
             return None
         if self.err:
             logger.debug("Error caught in thread")

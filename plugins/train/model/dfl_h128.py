@@ -2,27 +2,37 @@
 """ DeepFaceLab H128 Model
     Based on https://github.com/iperov/DeepFaceLab
 """
+from __future__ import annotations
 
-from lib.model.nn_blocks import Conv2DOutput, Conv2DBlock, UpscaleBlock
+from .original import KerasModel
+from .original import Model as OriginalModel
+from lib.model.nn_blocks import Conv2DBlock
+from lib.model.nn_blocks import Conv2DOutput
+from lib.model.nn_blocks import UpscaleBlock
 from lib.utils import get_backend
-from .original import Model as OriginalModel, KerasModel
 
 if get_backend() == "amd":
     from keras.layers import Dense, Flatten, Input, Reshape
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.layers import Dense, Flatten, Input, Reshape  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.layers import (
+        Dense,
+        Flatten,
+        Input,
+        Reshape,
+    )  # noqa pylint:disable=import-error,no-name-in-module
 
 
 class Model(OriginalModel):
-    """ H128 Model from DFL """
+    """H128 Model from DFL"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_shape = (128, 128, 3)
         self.encoder_dim = 256 if self.config["lowmem"] else 512
 
     def encoder(self):
-        """ DFL H128 Encoder """
+        """DFL H128 Encoder"""
         input_ = Input(shape=self.input_shape)
         var_x = Conv2DBlock(128, activation="leakyrelu")(input_)
         var_x = Conv2DBlock(256, activation="leakyrelu")(var_x)
@@ -35,7 +45,7 @@ class Model(OriginalModel):
         return KerasModel(input_, var_x, name="encoder")
 
     def decoder(self, side):
-        """ DFL H128 Decoder """
+        """DFL H128 Decoder"""
         input_ = Input(shape=(16, 16, self.encoder_dim))
         var_x = input_
         var_x = UpscaleBlock(self.encoder_dim, activation="leakyrelu")(var_x)

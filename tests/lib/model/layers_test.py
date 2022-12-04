@@ -3,11 +3,10 @@
 
 Adapted from Keras tests.
 """
+from __future__ import annotations
 
-
-import pytest
 import numpy as np
-
+import pytest
 from numpy.testing import assert_allclose
 
 from lib.model import layers
@@ -18,16 +17,27 @@ if get_backend() == "amd":
     from keras import Input, Model, backend as K
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras import Input, Model, backend as K  # pylint:disable=import-error
+    from tensorflow.keras import (
+        Input,
+        Model,
+        backend as K,
+    )  # pylint:disable=import-error
 
 
 CONV_SHAPE = (3, 3, 256, 2048)
 CONV_ID = get_backend().upper()
 
 
-def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
-               input_data=None, expected_output=None,
-               expected_output_dtype=None, fixed_batch_size=False):
+def layer_test(
+    layer_cls,
+    kwargs={},
+    input_shape=None,
+    input_dtype=None,
+    input_data=None,
+    expected_output=None,
+    expected_output_dtype=None,
+    fixed_batch_size=False,
+):
     """Test routine for a layer with a single input tensor
     and single output tensor.
     """
@@ -40,7 +50,7 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
         for i, var_e in enumerate(input_data_shape):
             if var_e is None:
                 input_data_shape[i] = np.random.randint(1, 4)
-        input_data = (10 * np.random.random(input_data_shape))
+        input_data = 10 * np.random.random(input_data_shape)
         input_data = input_data.astype(input_dtype)
     else:
         if input_shape is None:
@@ -73,8 +83,7 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
 
     actual_output = model.predict(input_data, verbose=0)
     actual_output_shape = actual_output.shape
-    for expected_dim, actual_dim in zip(expected_output_shape,
-                                        actual_output_shape):
+    for expected_dim, actual_dim in zip(expected_output_shape, actual_output_shape):
         if expected_dim is not None:
             assert expected_dim == actual_dim
 
@@ -92,51 +101,51 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
 
     # test training mode (e.g. useful when the layer has a
     # different behavior at training and testing time).
-    if has_arg(layer.call, 'training'):
-        model.compile('rmsprop', 'mse')
+    if has_arg(layer.call, "training"):
+        model.compile("rmsprop", "mse")
         model.train_on_batch(input_data, actual_output)
 
     # test instantiation from layer config
     layer_config = layer.get_config()
-    layer_config['batch_input_shape'] = input_shape
+    layer_config["batch_input_shape"] = input_shape
     layer = layer.__class__.from_config(layer_config)
 
     # for further checks in the caller function
     return actual_output
 
 
-@pytest.mark.parametrize('dummy', [None], ids=[get_backend().upper()])
+@pytest.mark.parametrize("dummy", [None], ids=[get_backend().upper()])
 def test_pixel_shuffler(dummy):  # pylint:disable=unused-argument
-    """ Pixel Shuffler layer test """
+    """Pixel Shuffler layer test"""
     layer_test(layers.PixelShuffler, input_shape=(2, 4, 4, 1024))
 
 
 @pytest.mark.skipif(get_backend() == "amd", reason="amd does not support this layer")
-@pytest.mark.parametrize('dummy', [None], ids=[get_backend().upper()])
+@pytest.mark.parametrize("dummy", [None], ids=[get_backend().upper()])
 def test_subpixel_upscaling(dummy):  # pylint:disable=unused-argument
-    """ Sub Pixel up-scaling layer test """
+    """Sub Pixel up-scaling layer test"""
     layer_test(layers.SubPixelUpscaling, input_shape=(2, 4, 4, 1024))
 
 
-@pytest.mark.parametrize('dummy', [None], ids=[get_backend().upper()])
+@pytest.mark.parametrize("dummy", [None], ids=[get_backend().upper()])
 def test_reflection_padding_2d(dummy):  # pylint:disable=unused-argument
-    """ Reflection Padding 2D layer test """
+    """Reflection Padding 2D layer test"""
     layer_test(layers.ReflectionPadding2D, input_shape=(2, 4, 4, 512))
 
 
-@pytest.mark.parametrize('dummy', [None], ids=[get_backend().upper()])
+@pytest.mark.parametrize("dummy", [None], ids=[get_backend().upper()])
 def test_global_min_pooling_2d(dummy):  # pylint:disable=unused-argument
-    """ Global Min Pooling 2D layer test """
+    """Global Min Pooling 2D layer test"""
     layer_test(layers.GlobalMinPooling2D, input_shape=(2, 4, 4, 1024))
 
 
-@pytest.mark.parametrize('dummy', [None], ids=[get_backend().upper()])
+@pytest.mark.parametrize("dummy", [None], ids=[get_backend().upper()])
 def test_global_std_pooling_2d(dummy):  # pylint:disable=unused-argument
-    """ Global Standard Deviation Pooling 2D layer test """
+    """Global Standard Deviation Pooling 2D layer test"""
     layer_test(layers.GlobalStdDevPooling2D, input_shape=(2, 4, 4, 1024))
 
 
-@pytest.mark.parametrize('dummy', [None], ids=[get_backend().upper()])
+@pytest.mark.parametrize("dummy", [None], ids=[get_backend().upper()])
 def test_l2_normalize(dummy):  # pylint:disable=unused-argument
-    """ L2 Normalize layer test """
+    """L2 Normalize layer test"""
     layer_test(layers.L2_normalize, kwargs={"axis": 1}, input_shape=(2, 4, 4, 1024))

@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
@@ -51,29 +52,31 @@ _DEFAULTS = dict(
     input_size=dict(
         default=128,
         info="Resolution (in pixels) of the image to train on.\n"
-             "BE AWARE Larger resolution will dramatically increaseVRAM requirements.\n"
-             "Make sure your resolution is divisible by 64 (e.g. 64, 128, 256 etc.).\n"
-             "NB: Your faceset must be at least 1.6x larger than your required input "
-             "size.\n(e.g. 160 is the maximum input size for a 256x256 faceset).",
+        "BE AWARE Larger resolution will dramatically increaseVRAM requirements.\n"
+        "Make sure your resolution is divisible by 64 (e.g. 64, 128, 256 etc.).\n"
+        "NB: Your faceset must be at least 1.6x larger than your required input "
+        "size.\n(e.g. 160 is the maximum input size for a 256x256 faceset).",
         datatype=int,
         rounding=64,
         min_max=(64, 512),
         choices=[],
         gui_radio=False,
         group="size",
-        fixed=True),
+        fixed=True,
+    ),
     lowmem=dict(
         default=False,
         info="Lower memory mode. Set to 'True' if having issues with VRAM useage.\n"
-             "NB: Models with a changed lowmem mode are not compatible with each other.\n"
-             "NB: lowmem will override cutom nodes and complexity settings.",
+        "NB: Models with a changed lowmem mode are not compatible with each other.\n"
+        "NB: lowmem will override cutom nodes and complexity settings.",
         datatype=bool,
         rounding=None,
         min_max=None,
         choices=[],
         gui_radio=False,
         group="settings",
-        fixed=True),
+        fixed=True,
+    ),
     nodes=dict(
         default=1024,
         info="Number of nodes for decoder. Don't change this unless you know what you are doing!",
@@ -83,7 +86,8 @@ _DEFAULTS = dict(
         choices=[],
         gui_radio=False,
         fixed=True,
-        group="network"),
+        group="network",
+    ),
     complexity_encoder=dict(
         default=128,
         info="Encoder Convolution Layer Complexity. sensible ranges: 128 to 160.",
@@ -93,7 +97,8 @@ _DEFAULTS = dict(
         choices=[],
         gui_radio=False,
         fixed=True,
-        group="network"),
+        group="network",
+    ),
     complexity_decoder_a=dict(
         default=384,
         info="Decoder A Complexity.",
@@ -103,7 +108,8 @@ _DEFAULTS = dict(
         choices=[],
         gui_radio=False,
         fixed=True,
-        group="network"),
+        group="network",
+    ),
     complexity_decoder_b=dict(
         default=512,
         info="Decoder B Complexity.",
@@ -113,4 +119,6 @@ _DEFAULTS = dict(
         choices=[],
         gui_radio=False,
         fixed=True,
-        group="network"))
+        group="network",
+    ),
+)

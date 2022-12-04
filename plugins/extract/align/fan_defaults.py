@@ -41,22 +41,20 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
-_HELPTEXT = (
-    "FAN Aligner options.\n"
-    "Fast on GPU, slow on CPU. Best aligner."
-    )
+_HELPTEXT = "FAN Aligner options.\n" "Fast on GPU, slow on CPU. Best aligner."
 
 
 _DEFAULTS = {
     "batch-size": dict(
         default=12,
         info="The batch size to use. To a point, higher batch sizes equal better performance, "
-             "but setting it too high can harm performance.\n"
-             "\n\tNvidia users: If the batchsize is set higher than the your GPU can "
-             "accomodate then this will automatically be lowered."
-             "\n\tAMD users: A batchsize of 8 requires about 4 GB vram.",
+        "but setting it too high can harm performance.\n"
+        "\n\tNvidia users: If the batchsize is set higher than the your GPU can "
+        "accomodate then this will automatically be lowered."
+        "\n\tAMD users: A batchsize of 8 requires about 4 GB vram.",
         datatype=int,
         rounding=1,
         min_max=(1, 64),

@@ -41,33 +41,36 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
     "VGG Face 2 identity recognition.\n"
     "A Keras port of the model trained for VGGFace2: A dataset for recognising faces across pose "
     "and age. (https://arxiv.org/abs/1710.08092)"
-    )
+)
 
 
 _DEFAULTS = {
     "batch-size": dict(
         default=16,
         info="The batch size to use. To a point, higher batch sizes equal better performance, but "
-             "setting it too high can harm performance.\n"
-             "\n\tNvidia users: If the batchsize is set higher than the your GPU can accomodate "
-             "then this will automatically be lowered.",
+        "setting it too high can harm performance.\n"
+        "\n\tNvidia users: If the batchsize is set higher than the your GPU can accomodate "
+        "then this will automatically be lowered.",
         datatype=int,
         rounding=1,
         min_max=(1, 64),
         choices=[],
         group="settings",
         gui_radio=False,
-        fixed=True),
+        fixed=True,
+    ),
     "cpu": dict(
         default=False,
         info="[Nvidia Only] VGG Face2 still runs fairly quickly on CPU on some setups. Enable "
-             "CPU mode here to use the CPU for this plugin to save some VRAM at a speed cost.",
+        "CPU mode here to use the CPU for this plugin to save some VRAM at a speed cost.",
         datatype=bool,
-        group="settings"),
+        group="settings",
+    ),
 }

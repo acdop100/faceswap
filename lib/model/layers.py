@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """ Custom Layers for faceswap.py. """
+from __future__ import annotations
 
-from __future__ import absolute_import
-
-import sys
 import inspect
+import sys
 
 import tensorflow as tf
 
@@ -12,20 +11,30 @@ from lib.utils import get_backend
 
 if get_backend() == "amd":
     from lib.plaidml_utils import pad
-    from keras.utils import get_custom_objects, conv_utils  # pylint:disable=no-name-in-module
+    from keras.utils import (
+        get_custom_objects,
+        conv_utils,
+    )  # pylint:disable=no-name-in-module
     import keras.backend as K
     from keras.layers import InputSpec, Layer
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.utils import get_custom_objects  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.utils import (
+        get_custom_objects,
+    )  # noqa pylint:disable=no-name-in-module,import-error
     from tensorflow.keras import backend as K  # pylint:disable=import-error
-    from tensorflow.keras.layers import InputSpec, Layer  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.layers import (
+        InputSpec,
+        Layer,
+    )  # noqa pylint:disable=no-name-in-module,import-error
     from tensorflow import pad  # type:ignore
-    from tensorflow.python.keras.utils import conv_utils  # pylint:disable=no-name-in-module
+    from tensorflow.python.keras.utils import (
+        conv_utils,
+    )  # pylint:disable=no-name-in-module
 
 
 class PixelShuffler(Layer):
-    """ PixelShuffler layer for Keras.
+    """PixelShuffler layer for Keras.
 
     This layer requires a Convolution2D prior to it, having output filters computed according to
     the formula :math:`filters = k * (scale_factor * scale_factor)` where `k` is a user defined
@@ -63,13 +72,16 @@ class PixelShuffler(Layer):
     ----------
     https://gist.github.com/t-ae/6e1016cc188104d123676ccef3264981
     """
+
     def __init__(self, size=(2, 2), data_format=None, **kwargs):
         super().__init__(**kwargs)
         if get_backend() == "amd":
-            self.data_format = K.normalize_data_format(data_format)  # pylint:disable=no-member
+            self.data_format = K.normalize_data_format(
+                data_format
+            )  # pylint:disable=no-member
         else:
             self.data_format = conv_utils.normalize_data_format(data_format)
-        self.size = conv_utils.normalize_tuple(size, 2, 'size')
+        self.size = conv_utils.normalize_tuple(size, 2, "size")
 
     def call(self, inputs, *args, **kwargs):
         """This is where the layer's logic lives.
@@ -90,11 +102,12 @@ class PixelShuffler(Layer):
         """
         input_shape = K.int_shape(inputs)
         if len(input_shape) != 4:
-            raise ValueError('Inputs should have rank ' +
-                             str(4) +
-                             '; Received input shape:', str(input_shape))
+            raise ValueError(
+                "Inputs should have rank " + str(4) + "; Received input shape:",
+                str(input_shape),
+            )
 
-        if self.data_format == 'channels_first':
+        if self.data_format == "channels_first":
             batch_size, channels, height, width = input_shape
             if batch_size is None:
                 batch_size = -1
@@ -102,10 +115,12 @@ class PixelShuffler(Layer):
             o_height, o_width = height * r_height, width * r_width
             o_channels = channels // (r_height * r_width)
 
-            out = K.reshape(inputs, (batch_size, r_height, r_width, o_channels, height, width))
+            out = K.reshape(
+                inputs, (batch_size, r_height, r_width, o_channels, height, width)
+            )
             out = K.permute_dimensions(out, (0, 3, 4, 1, 5, 2))
             out = K.reshape(out, (batch_size, o_channels, o_height, o_width))
-        elif self.data_format == 'channels_last':
+        elif self.data_format == "channels_last":
             batch_size, height, width, channels = input_shape
             if batch_size is None:
                 batch_size = -1
@@ -113,7 +128,9 @@ class PixelShuffler(Layer):
             o_height, o_width = height * r_height, width * r_width
             o_channels = channels // (r_height * r_width)
 
-            out = K.reshape(inputs, (batch_size, height, width, r_height, r_width, o_channels))
+            out = K.reshape(
+                inputs, (batch_size, height, width, r_height, r_width, o_channels)
+            )
             out = K.permute_dimensions(out, (0, 1, 3, 2, 4, 5))
             out = K.reshape(out, (batch_size, o_height, o_width, o_channels))
         return out
@@ -135,11 +152,12 @@ class PixelShuffler(Layer):
             An input shape tuple
         """
         if len(input_shape) != 4:
-            raise ValueError('Inputs should have rank ' +
-                             str(4) +
-                             '; Received input shape:', str(input_shape))
+            raise ValueError(
+                "Inputs should have rank " + str(4) + "; Received input shape:",
+                str(input_shape),
+            )
 
-        if self.data_format == 'channels_first':
+        if self.data_format == "channels_first":
             height = None
             width = None
             if input_shape[2] is not None:
@@ -149,13 +167,10 @@ class PixelShuffler(Layer):
             channels = input_shape[1] // self.size[0] // self.size[1]
 
             if channels * self.size[0] * self.size[1] != input_shape[1]:
-                raise ValueError('channels of input and size are incompatible')
+                raise ValueError("channels of input and size are incompatible")
 
-            retval = (input_shape[0],
-                      channels,
-                      height,
-                      width)
-        elif self.data_format == 'channels_last':
+            retval = (input_shape[0], channels, height, width)
+        elif self.data_format == "channels_last":
             height = None
             width = None
             if input_shape[1] is not None:
@@ -165,12 +180,9 @@ class PixelShuffler(Layer):
             channels = input_shape[3] // self.size[0] // self.size[1]
 
             if channels * self.size[0] * self.size[1] != input_shape[3]:
-                raise ValueError('channels of input and size are incompatible')
+                raise ValueError("channels of input and size are incompatible")
 
-            retval = (input_shape[0],
-                      height,
-                      width,
-                      channels)
+            retval = (input_shape[0], height, width, channels)
         return retval
 
     def get_config(self):
@@ -188,15 +200,14 @@ class PixelShuffler(Layer):
         dict
             A python dictionary containing the layer configuration
         """
-        config = {'size': self.size,
-                  'data_format': self.data_format}
+        config = {"size": self.size, "data_format": self.data_format}
         base_config = super().get_config()
 
         return dict(list(base_config.items()) + list(config.items()))
 
 
 class KResizeImages(Layer):
-    """ A custom upscale function that uses :class:`keras.backend.resize_images` to upsample.
+    """A custom upscale function that uses :class:`keras.backend.resize_images` to upsample.
 
     Parameters
     ----------
@@ -207,13 +218,14 @@ class KResizeImages(Layer):
     kwargs: dict
         The standard Keras Layer keyword arguments (if any)
     """
+
     def __init__(self, size=2, interpolation="nearest", **kwargs):
         super().__init__(**kwargs)
         self.size = size
         self.interpolation = interpolation
 
     def call(self, inputs, *args, **kwargs):
-        """ Call the upsample layer
+        """Call the upsample layer
 
         Parameters
         ----------
@@ -230,16 +242,20 @@ class KResizeImages(Layer):
             A tensor or list/tuple of tensors
         """
         if isinstance(self.size, int):
-            retval = K.resize_images(inputs,
-                                     self.size,
-                                     self.size,
-                                     "channels_last",
-                                     interpolation=self.interpolation)
+            retval = K.resize_images(
+                inputs,
+                self.size,
+                self.size,
+                "channels_last",
+                interpolation=self.interpolation,
+            )
         else:
             # Arbitrary resizing
             size = int(round(K.int_shape(inputs)[1] * self.size))
             if get_backend() != "amd":
-                retval = tf.image.resize(inputs, (size, size), method=self.interpolation)
+                retval = tf.image.resize(
+                    inputs, (size, size), method=self.interpolation
+                )
             else:
                 raise NotImplementedError
         return retval
@@ -277,7 +293,7 @@ class KResizeImages(Layer):
 
 
 class SubPixelUpscaling(Layer):
-    """ Sub-pixel convolutional up-scaling layer.
+    """Sub-pixel convolutional up-scaling layer.
 
     This layer requires a Convolution2D prior to it, having output filters computed according to
     the formula :math:`filters = k * (scale_factor * scale_factor)` where `k` is a user defined
@@ -326,7 +342,9 @@ class SubPixelUpscaling(Layer):
 
         self.scale_factor = scale_factor
         if get_backend() == "amd":
-            self.data_format = K.normalize_data_format(data_format)  # pylint:disable=no-member
+            self.data_format = K.normalize_data_format(
+                data_format
+            )  # pylint:disable=no-member
         else:
             self.data_format = conv_utils.normalize_data_format(data_format)
 
@@ -381,19 +399,23 @@ class SubPixelUpscaling(Layer):
         """
         if self.data_format == "channels_first":
             batch, channels, rows, columns = input_shape
-            return (batch,
-                    channels // (self.scale_factor ** 2),
-                    rows * self.scale_factor,
-                    columns * self.scale_factor)
-        batch, rows, columns, channels = input_shape
-        return (batch,
+            return (
+                batch,
+                channels // (self.scale_factor**2),
                 rows * self.scale_factor,
                 columns * self.scale_factor,
-                channels // (self.scale_factor ** 2))
+            )
+        batch, rows, columns, channels = input_shape
+        return (
+            batch,
+            rows * self.scale_factor,
+            columns * self.scale_factor,
+            channels // (self.scale_factor**2),
+        )
 
     @classmethod
     def _depth_to_space(cls, ipt, scale, data_format=None):
-        """ Uses phase shift algorithm to convert channels/depth for spatial resolution """
+        """Uses phase shift algorithm to convert channels/depth for spatial resolution"""
         if data_format is None:
             data_format = K.image_data_format()
         data_format = data_format.lower()
@@ -466,8 +488,7 @@ class SubPixelUpscaling(Layer):
         dict
             A python dictionary containing the layer configuration
         """
-        config = {"scale_factor": self.scale_factor,
-                  "data_format": self.data_format}
+        config = {"scale_factor": self.scale_factor, "data_format": self.data_format}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -486,6 +507,7 @@ class ReflectionPadding2D(Layer):
     kwargs: dict
         The standard Keras Layer keyword arguments (if any)
     """
+
     def __init__(self, stride=2, kernel_size=5, **kwargs):
         if isinstance(stride, (tuple, list)):
             assert len(stride) == 2 and stride[0] == stride[1]
@@ -538,10 +560,12 @@ class ReflectionPadding2D(Layer):
         else:
             padding_width = max(kernel_width - (in_width % self.stride), 0)
 
-        return (input_shape[0],
-                input_shape[1] + padding_height,
-                input_shape[2] + padding_width,
-                input_shape[3])
+        return (
+            input_shape[0],
+            input_shape[1] + padding_height,
+            input_shape[2] + padding_width,
+            input_shape[3],
+        )
 
     def call(self, var_x, mask=None):  # pylint:disable=unused-argument,arguments-differ
         """This is where the layer's logic lives.
@@ -576,12 +600,11 @@ class ReflectionPadding2D(Layer):
         padding_left = padding_width // 2
         padding_right = padding_width - padding_left
 
-        return pad(var_x,
-                   [[0, 0],
-                    [padding_top, padding_bot],
-                    [padding_left, padding_right],
-                    [0, 0]],
-                   'REFLECT')
+        return pad(
+            var_x,
+            [[0, 0], [padding_top, padding_bot], [padding_left, padding_right], [0, 0]],
+            "REFLECT",
+        )
 
     def get_config(self):
         """Returns the config of the layer.
@@ -598,8 +621,7 @@ class ReflectionPadding2D(Layer):
         dict
             A python dictionary containing the layer configuration
         """
-        config = {'stride': self.stride,
-                  'kernel_size': self.kernel_size}
+        config = {"stride": self.stride, "kernel_size": self.kernel_size}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -609,28 +631,31 @@ class _GlobalPooling2D(Layer):
 
     From keras as access to pooling is trickier in tensorflow.keras
     """
+
     def __init__(self, data_format=None, **kwargs):
         super().__init__(**kwargs)
         if get_backend() == "amd":
-            self.data_format = K.normalize_data_format(data_format)  # pylint:disable=no-member
+            self.data_format = K.normalize_data_format(
+                data_format
+            )  # pylint:disable=no-member
         else:
             self.data_format = conv_utils.normalize_data_format(data_format)
         self.input_spec = InputSpec(ndim=4)
 
     def compute_output_shape(self, input_shape):
-        """ Compute the output shape based on the input shape.
+        """Compute the output shape based on the input shape.
 
         Parameters
         ----------
         input_shape: tuple
             The input shape to the layer
         """
-        if self.data_format == 'channels_last':
+        if self.data_format == "channels_last":
             return (input_shape[0], input_shape[3])
         return (input_shape[0], input_shape[1])
 
     def call(self, inputs, *args, **kwargs):
-        """ Override to call the layer.
+        """Override to call the layer.
 
         Parameters
         ----------
@@ -644,14 +669,14 @@ class _GlobalPooling2D(Layer):
         raise NotImplementedError
 
     def get_config(self):
-        """ Set the Keras config """
-        config = {'data_format': self.data_format}
+        """Set the Keras config"""
+        config = {"data_format": self.data_format}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
 class GlobalMinPooling2D(_GlobalPooling2D):
-    """Global minimum pooling operation for spatial data. """
+    """Global minimum pooling operation for spatial data."""
 
     def call(self, inputs, *args, **kwargs):
         """This is where the layer's logic lives.
@@ -670,7 +695,7 @@ class GlobalMinPooling2D(_GlobalPooling2D):
         tensor
             A tensor or list/tuple of tensors
         """
-        if self.data_format == 'channels_last':
+        if self.data_format == "channels_last":
             pooled = K.min(inputs, axis=[1, 2])
         else:
             pooled = K.min(inputs, axis=[2, 3])
@@ -678,7 +703,7 @@ class GlobalMinPooling2D(_GlobalPooling2D):
 
 
 class GlobalStdDevPooling2D(_GlobalPooling2D):
-    """Global standard deviation pooling operation for spatial data. """
+    """Global standard deviation pooling operation for spatial data."""
 
     def call(self, inputs, *args, **kwargs):
         """This is where the layer's logic lives.
@@ -697,7 +722,7 @@ class GlobalStdDevPooling2D(_GlobalPooling2D):
         tensor
             A tensor or list/tuple of tensors
         """
-        if self.data_format == 'channels_last':
+        if self.data_format == "channels_last":
             pooled = K.std(inputs, axis=[1, 2])
         else:
             pooled = K.std(inputs, axis=[2, 3])
@@ -705,7 +730,7 @@ class GlobalStdDevPooling2D(_GlobalPooling2D):
 
 
 class L2_normalize(Layer):  # pylint:disable=invalid-name
-    """ Normalizes a tensor w.r.t. the L2 norm alongside the specified axis.
+    """Normalizes a tensor w.r.t. the L2 norm alongside the specified axis.
 
     Parameters
     ----------
@@ -714,6 +739,7 @@ class L2_normalize(Layer):  # pylint:disable=invalid-name
     kwargs: dict
         The standard Keras Layer keyword arguments (if any)
     """
+
     def __init__(self, axis, **kwargs):
         self.axis = axis
         super().__init__(**kwargs)
@@ -756,7 +782,7 @@ class L2_normalize(Layer):  # pylint:disable=invalid-name
 
 
 class Swish(Layer):
-    """ Swish Activation Layer implementation for Keras.
+    """Swish Activation Layer implementation for Keras.
 
     Parameters
     ----------
@@ -769,12 +795,13 @@ class Swish(Layer):
     -----------
     Swish: a Self-Gated Activation Function: https://arxiv.org/abs/1710.05941v1
     """
+
     def __init__(self, beta=1.0, **kwargs):
         super().__init__(**kwargs)
         self.beta = beta
 
     def call(self, inputs):  # pylint:disable=arguments-differ
-        """ Call the Swish Activation function.
+        """Call the Swish Activation function.
 
         Parameters
         ----------

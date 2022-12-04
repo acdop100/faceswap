@@ -1,24 +1,33 @@
 #!/usr/bin python3
 """ Graph functions for Display Frame area of the Faceswap GUI """
+from __future__ import annotations
+
 import datetime
 import logging
 import os
 import tkinter as tk
-
+from math import ceil
+from math import floor
 from tkinter import ttk
-from typing import cast, Union, List, Optional, Tuple, TYPE_CHECKING
-from math import ceil, floor
+from typing import cast
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
 
-import numpy as np
 import matplotlib
+import numpy as np
 from matplotlib import style
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-                                               NavigationToolbar2Tk)
 from matplotlib.backend_bases import NavigationToolbar2
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+from matplotlib.figure import Figure
 
 from .custom_widgets import Tooltip
-from .utils import get_config, get_images, LongRunningTask
+from .utils import get_config
+from .utils import get_images
+from .utils import LongRunningTask
 
 if TYPE_CHECKING:
     from matplotlib.lines import Line2D
@@ -29,7 +38,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
-    """ Base class for matplotlib line graphs.
+    """Base class for matplotlib line graphs.
 
     Parameters
     ----------
@@ -40,6 +49,7 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
     ylabel: str
         The data label for the y-axis
     """
+
     def __init__(self, parent: ttk.Frame, data, ylabel: str) -> None:
         logger.debug("Initializing %s", self.__class__.__name__)
         super().__init__(parent)
@@ -47,10 +57,25 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
 
         self._calcs = data
         self._ylabel = ylabel
-        self._colourmaps = ["Reds", "Blues", "Greens", "Purples", "Oranges", "Greys", "copper",
-                            "summer", "bone", "hot", "cool", "pink", "Wistia", "spring", "winter"]
-        self._lines: List["Line2D"] = []
-        self._toolbar: Optional["NavigationToolbar"] = None
+        self._colourmaps = [
+            "Reds",
+            "Blues",
+            "Greens",
+            "Purples",
+            "Oranges",
+            "Greys",
+            "copper",
+            "summer",
+            "bone",
+            "hot",
+            "cool",
+            "pink",
+            "Wistia",
+            "spring",
+            "winter",
+        ]
+        self._lines: list[Line2D] = []
+        self._toolbar: NavigationToolbar | None = None
         self._fig = Figure(figsize=(4, 4), dpi=75)
 
         self._ax1 = self._fig.add_subplot(1, 1, 1)
@@ -62,24 +87,23 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
 
     @property
     def calcs(self):
-        """ :class:`lib.gui.analysis.stats.Calculations`. The calculated statistics associated with
-        this graph. """
+        """:class:`lib.gui.analysis.stats.Calculations`. The calculated statistics associated with
+        this graph."""
         return self._calcs
 
     def _initiate_graph(self) -> None:
-        """ Place the graph canvas """
+        """Place the graph canvas"""
         logger.debug("Setting plotcanvas")
-        self._plotcanvas.get_tk_widget().pack(side=tk.TOP, padx=5, fill=tk.BOTH, expand=True)
-        self._fig.subplots_adjust(left=0.100,
-                                  bottom=0.100,
-                                  right=0.95,
-                                  top=0.95,
-                                  wspace=0.2,
-                                  hspace=0.2)
+        self._plotcanvas.get_tk_widget().pack(
+            side=tk.TOP, padx=5, fill=tk.BOTH, expand=True
+        )
+        self._fig.subplots_adjust(
+            left=0.100, bottom=0.100, right=0.95, top=0.95, wspace=0.2, hspace=0.2
+        )
         logger.debug("Set plotcanvas")
 
     def _update_plot(self, initiate: bool = True) -> None:
-        """ Update the plot with incoming data
+        """Update the plot with incoming data
 
         Parameters
         ----------
@@ -108,8 +132,15 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
 
         for idx, item in enumerate(self._lines_sort(keys)):
             if initiate:
-                self._lines.extend(self._ax1.plot(xrng, self._calcs.stats[item[0]],
-                                                  label=item[1], linewidth=item[2], color=item[3]))
+                self._lines.extend(
+                    self._ax1.plot(
+                        xrng,
+                        self._calcs.stats[item[0]],
+                        label=item[1],
+                        linewidth=item[2],
+                        color=item[3],
+                    )
+                )
             else:
                 self._lines[idx].set_data(xrng, self._calcs.stats[item[0]])
 
@@ -118,19 +149,19 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         logger.trace("Updated plot")  # type:ignore
 
     def _axes_labels_set(self) -> None:
-        """ Set the X and Y axes labels. """
+        """Set the X and Y axes labels."""
         logger.debug("Setting axes labels. y-label: '%s'", self._ylabel)
         self._ax1.set_xlabel("Iterations")
         self._ax1.set_ylabel(self._ylabel)
 
     def _axes_limits_set_default(self) -> None:
-        """ Set the default axes limits for the X and Y axes. """
+        """Set the default axes limits for the X and Y axes."""
         logger.debug("Setting default axes ranges")
         self._ax1.set_ylim(0.00, 100.0)
         self._ax1.set_xlim(0, 1)
 
-    def _axes_limits_set(self, data: List[float]) -> None:
-        """ Set the axes limits.
+    def _axes_limits_set(self, data: list[float]) -> None:
+        """Set the axes limits.
 
         Parameters
         ----------
@@ -148,14 +179,18 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
             ymin, ymax = self._axes_data_get_min_max(data)
             self._ax1.set_ylim(ymin, ymax)
             self._ax1.set_xlim(xmin, xmax)
-            logger.trace("axes ranges: (y: (%s, %s), x:(0, %s)",  # type:ignore
-                         ymin, ymax, xmax)
+            logger.trace(
+                "axes ranges: (y: (%s, %s), x:(0, %s)",  # type:ignore
+                ymin,
+                ymax,
+                xmax,
+            )
         else:
             self._axes_limits_set_default()
 
     @staticmethod
-    def _axes_data_get_min_max(data: List[float]) -> Tuple[float, float]:
-        """ Obtain the minimum and maximum values for the y-axis from the given data points.
+    def _axes_data_get_min_max(data: list[float]) -> tuple[float, float]:
+        """Obtain the minimum and maximum values for the y-axis from the given data points.
 
         Parameters
         ----------
@@ -178,7 +213,7 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         return ymin, ymax
 
     def _axes_set_yscale(self, scale: str) -> None:
-        """ Set the Y-Scale to log or linear
+        """Set the Y-Scale to log or linear
 
         Parameters
         ----------
@@ -188,8 +223,8 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         logger.debug("yscale: '%s'", scale)
         self._ax1.set_yscale(scale)
 
-    def _lines_sort(self, keys: List[str]) -> List[List[Union[str, int, Tuple[float]]]]:
-        """ Sort the data keys into consistent order and set line color map and line width.
+    def _lines_sort(self, keys: list[str]) -> list[list[str | int | tuple[float]]]:
+        """Sort the data keys into consistent order and set line color map and line width.
 
         Parameters
         ----------
@@ -202,8 +237,8 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
             A list of loss keys with their corresponding line formatting and color information
         """
         logger.trace("Sorting lines")  # type:ignore
-        raw_lines: List[List[str]] = []
-        sorted_lines: List[List[str]] = []
+        raw_lines: list[list[str]] = []
+        sorted_lines: list[list[str]] = []
         for key in sorted(keys):
             title = key.replace("_", " ").title()
             if key.startswith("raw"):
@@ -217,8 +252,10 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         return lines
 
     @staticmethod
-    def _lines_groupsize(raw_lines: List[List[str]], sorted_lines: List[List[str]]) -> int:
-        """ Get the number of items in each group.
+    def _lines_groupsize(
+        raw_lines: list[list[str]], sorted_lines: list[list[str]]
+    ) -> int:
+        """Get the number of items in each group.
 
         If raw data isn't selected, then check the length of remaining groups until something is
         found.
@@ -239,16 +276,16 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         if raw_lines:
             groupsize = len(raw_lines)
         elif sorted_lines:
-            keys = [key[0][:key[0].find("_")] for key in sorted_lines]
+            keys = [key[0][: key[0].find("_")] for key in sorted_lines]
             distinct_keys = set(keys)
             groupsize = len(keys) // len(distinct_keys)
         logger.trace(groupsize)  # type:ignore
         return groupsize
 
-    def _lines_style(self,
-                     lines: List[List[str]],
-                     groupsize: int) -> List[List[Union[str, int, Tuple[float]]]]:
-        """ Obtain the color map and line width for each group.
+    def _lines_style(
+        self, lines: list[list[str]], groupsize: int
+    ) -> list[list[str | int | tuple[float]]]:
+        """Obtain the color map and line width for each group.
 
         Parameters
         ----------
@@ -266,14 +303,14 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         groups = int(len(lines) / groupsize)
         colours = self._lines_create_colors(groupsize, groups)
         widths = list(range(1, groups + 1))
-        retval = cast(List[List[Union[str, int, Tuple[float]]]], lines)
+        retval = cast(list[list[Union[str, int, tuple[float]]]], lines)
         for idx, item in enumerate(retval):
             linewidth = widths[idx // groupsize]
             item.extend((linewidth, colours[idx]))
         return retval
 
-    def _lines_create_colors(self, groupsize: int, groups: int) -> List[Tuple[float]]:
-        """ Create the color maps.
+    def _lines_create_colors(self, groupsize: int, groups: int) -> list[tuple[float]]:
+        """Create the color maps.
 
         Parameters
         ----------
@@ -297,12 +334,12 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         return colours
 
     def _legend_place(self) -> None:
-        """ Place and format the graph legend """
+        """Place and format the graph legend"""
         logger.debug("Placing legend")
         self._ax1.legend(loc="upper right", ncol=2)
 
     def _toolbar_place(self, parent: ttk.Frame) -> None:
-        """ Add Graph Navigation toolbar.
+        """Add Graph Navigation toolbar.
 
         Parameters
         ----------
@@ -315,14 +352,14 @@ class GraphBase(ttk.Frame):  # pylint: disable=too-many-ancestors
         self._toolbar.update()
 
     def clear(self) -> None:
-        """ Clear the graph plots from RAM """
+        """Clear the graph plots from RAM"""
         logger.debug("Clearing graph from RAM: %s", self)
         self._fig.clf()
         del self._fig
 
 
 class TrainingGraph(GraphBase):  # pylint: disable=too-many-ancestors
-    """ Live graph to be displayed during training.
+    """Live graph to be displayed during training.
 
     Parameters
     ----------
@@ -336,22 +373,22 @@ class TrainingGraph(GraphBase):  # pylint: disable=too-many-ancestors
 
     def __init__(self, parent: ttk.Frame, data, ylabel: str) -> None:
         super().__init__(parent, data, ylabel)
-        self._thread: Optional[LongRunningTask] = None  # Thread for LongRunningTask
-        self._displayed_keys: List[str] = []
+        self._thread: LongRunningTask | None = None  # Thread for LongRunningTask
+        self._displayed_keys: list[str] = []
         self._add_callback()
 
     def _add_callback(self) -> None:
-        """ Add the variable trace to update graph on refresh button press or save iteration. """
+        """Add the variable trace to update graph on refresh button press or save iteration."""
         get_config().tk_vars.refresh_graph.trace("w", self.refresh)  # type:ignore
 
     def build(self) -> None:
-        """ Build the Training graph. """
+        """Build the Training graph."""
         logger.debug("Building training graph")
         self._plotcanvas.draw()
         logger.debug("Built training graph")
 
     def refresh(self, *args) -> None:  # pylint: disable=unused-argument
-        """ Read the latest loss data and apply to current graph """
+        """Read the latest loss data and apply to current graph"""
         refresh_var = cast(tk.BooleanVar, get_config().tk_vars.refresh_graph)
         if not refresh_var.get() and self._thread is None:
             return
@@ -366,13 +403,18 @@ class TrainingGraph(GraphBase):  # pylint: disable=too-many-ancestors
             self.after(1000, self.refresh)
         else:
             logger.debug("Updating plot with data from background thread")
-            self._calcs = self._thread.get_result()  # Terminate the LongRunningTask object
+            self._calcs = (
+                self._thread.get_result()
+            )  # Terminate the LongRunningTask object
             self._thread = None
 
             dsp_keys = list(sorted(self._calcs.stats))
             if dsp_keys != self._displayed_keys:
-                logger.debug("Reinitializing graph for keys change. Old keys: %s New keys: %s",
-                             self._displayed_keys, dsp_keys)
+                logger.debug(
+                    "Reinitializing graph for keys change. Old keys: %s New keys: %s",
+                    self._displayed_keys,
+                    dsp_keys,
+                )
                 initiate = True
                 self._displayed_keys = dsp_keys
             else:
@@ -383,7 +425,7 @@ class TrainingGraph(GraphBase):  # pylint: disable=too-many-ancestors
             refresh_var.set(False)
 
     def save_fig(self, location: str) -> None:
-        """ Save the current graph to file
+        """Save the current graph to file
 
         Parameters
         ----------
@@ -391,8 +433,13 @@ class TrainingGraph(GraphBase):  # pylint: disable=too-many-ancestors
             The full path to the folder where the current graph should be saved
         """
         logger.debug("Saving graph: '%s'", location)
-        keys = sorted([key.replace("raw_", "") for key in self._calcs.stats.keys()
-                       if key.startswith("raw_")])
+        keys = sorted(
+            [
+                key.replace("raw_", "")
+                for key in self._calcs.stats.keys()
+                if key.startswith("raw_")
+            ]
+        )
         filename = " - ".join(keys)
         now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(location, f"{filename}_{now}.png")
@@ -403,17 +450,20 @@ class TrainingGraph(GraphBase):  # pylint: disable=too-many-ancestors
         self._resize_fig()
 
     def _resize_fig(self) -> None:
-        """ Resize the figure to the current canvas size. """
-        class Event():  # pylint: disable=too-few-public-methods
-            """ Event class that needs to be passed to plotcanvas.resize """
+        """Resize the figure to the current canvas size."""
+
+        class Event:  # pylint: disable=too-few-public-methods
+            """Event class that needs to be passed to plotcanvas.resize"""
+
             pass  # pylint: disable=unnecessary-pass
+
         setattr(Event, "width", self.winfo_width())
         setattr(Event, "height", self.winfo_height())
         self._plotcanvas.resize(Event)  # pylint: disable=no-value-for-parameter
 
 
 class SessionGraph(GraphBase):  # pylint: disable=too-many-ancestors
-    """ Session Graph for session pop-up.
+    """Session Graph for session pop-up.
 
     Parameters
     ----------
@@ -426,19 +476,20 @@ class SessionGraph(GraphBase):  # pylint: disable=too-many-ancestors
     scale: str
         Should be one of ``"log"`` or ``"linear"``
     """
+
     def __init__(self, parent: ttk.Frame, data, ylabel: str, scale: str) -> None:
         super().__init__(parent, data, ylabel)
         self._scale = scale
 
     def build(self) -> None:
-        """ Build the session graph """
+        """Build the session graph"""
         logger.debug("Building session graph")
         self._toolbar_place(self)
         self._plotcanvas.draw()
         logger.debug("Built session graph")
 
     def refresh(self, data, ylabel: str, scale: str) -> None:
-        """ Refresh the Session Graph's data.
+        """Refresh the Session Graph's data.
 
         Parameters
         ----------
@@ -449,14 +500,16 @@ class SessionGraph(GraphBase):  # pylint: disable=too-many-ancestors
         scale: str
             Should be one of ``"log"`` or ``"linear"``
         """
-        logger.debug("Refreshing session graph: (ylabel: '%s', scale: '%s')", ylabel, scale)
+        logger.debug(
+            "Refreshing session graph: (ylabel: '%s', scale: '%s')", ylabel, scale
+        )
         self._calcs = data
         self._ylabel = ylabel
         self.set_yscale_type(scale)
         logger.debug("Refreshed session graph")
 
     def set_yscale_type(self, scale: str) -> None:
-        """ Set the scale type for the y-axis and redraw.
+        """Set the scale type for the y-axis and redraw.
 
         Parameters
         ----------
@@ -472,7 +525,7 @@ class SessionGraph(GraphBase):  # pylint: disable=too-many-ancestors
 
 
 class NavigationToolbar(NavigationToolbar2Tk):  # pylint: disable=too-many-ancestors
-    """ Overrides the default Navigation Toolbar to provide only the buttons we require
+    """Overrides the default Navigation Toolbar to provide only the buttons we require
     and to layout the items in a consistent manner with the rest of the GUI for the Analysis
     Session Graph pop up Window.
 
@@ -485,22 +538,30 @@ class NavigationToolbar(NavigationToolbar2Tk):  # pylint: disable=too-many-ances
     pack_toolbar: bool, Optional
         Whether to pack the Tool bar or not. Default: ``True``
     """
-    toolitems = [t for t in NavigationToolbar2Tk.toolitems if
-                 t[0] in ("Home", "Pan", "Zoom", "Save")]
 
-    def __init__(self,  # pylint: disable=super-init-not-called
-                 canvas: FigureCanvasTkAgg,
-                 window: ttk.Frame,
-                 *,
-                 pack_toolbar: bool = True) -> None:
+    toolitems = [
+        t
+        for t in NavigationToolbar2Tk.toolitems
+        if t[0] in ("Home", "Pan", "Zoom", "Save")
+    ]
+
+    def __init__(
+        self,  # pylint: disable=super-init-not-called
+        canvas: FigureCanvasTkAgg,
+        window: ttk.Frame,
+        *,
+        pack_toolbar: bool = True,
+    ) -> None:
 
         # Avoid using self.window (prefer self.canvas.get_tk_widget().master),
         # so that Tool implementations can reuse the methods.
 
-        ttk.Frame.__init__(self,  # pylint:disable=non-parent-init-called
-                           master=window,
-                           width=int(canvas.figure.bbox.width),
-                           height=50)
+        ttk.Frame.__init__(
+            self,  # pylint:disable=non-parent-init-called
+            master=window,
+            width=int(canvas.figure.bbox.width),
+            height=50,
+        )
 
         sep = ttk.Frame(self, height=2, relief=tk.RIDGE)
         sep.pack(fill=tk.X, pady=(5, 0), side=tk.TOP)
@@ -524,17 +585,21 @@ class NavigationToolbar(NavigationToolbar2Tk):  # pylint: disable=too-many-ances
         self._message_label = ttk.Label(master=self, textvariable=self.message)
         self._message_label.pack(side=tk.LEFT, padx=5)  # Additional left padding
 
-        NavigationToolbar2.__init__(self, canvas)  # pylint:disable=non-parent-init-called
+        NavigationToolbar2.__init__(
+            self, canvas
+        )  # pylint:disable=non-parent-init-called
         if pack_toolbar:
             self.pack(side=tk.BOTTOM, fill=tk.X)
 
     @staticmethod
-    def _Button(frame: ttk.Frame,  # pylint:disable=arguments-differ,arguments-renamed
-                text: str,
-                image_file: str,
-                toggle: bool,
-                command) -> Union[ttk.Button, ttk.Checkbutton]:
-        """ Override the default button method to use our icons and ttk widgets for
+    def _Button(
+        frame: ttk.Frame,  # pylint:disable=arguments-differ,arguments-renamed
+        text: str,
+        image_file: str,
+        toggle: bool,
+        command,
+    ) -> ttk.Button | ttk.Checkbutton:
+        """Override the default button method to use our icons and ttk widgets for
         consistent GUI layout.
 
         Parameters
@@ -556,20 +621,21 @@ class NavigationToolbar(NavigationToolbar2Tk):  # pylint: disable=too-many-ances
             The widger to use. A button if the option is not toggleable, a checkbutton if the
             option is toggleable.
         """
-        iconmapping = {"home": "reload",
-                       "filesave": "save",
-                       "zoom_to_rect": "zoom"}
-        icon = iconmapping[image_file] if iconmapping.get(image_file, None) else image_file
+        iconmapping = {"home": "reload", "filesave": "save", "zoom_to_rect": "zoom"}
+        icon = (
+            iconmapping[image_file] if iconmapping.get(image_file, None) else image_file
+        )
         img = get_images().icons[icon]
 
         if not toggle:
-            btn: Union[ttk.Button, ttk.Checkbutton] = ttk.Button(frame,
-                                                                 text=text,
-                                                                 image=img,
-                                                                 command=command)
+            btn: ttk.Button | ttk.Checkbutton = ttk.Button(
+                frame, text=text, image=img, command=command
+            )
         else:
             var = tk.IntVar(master=frame)
-            btn = ttk.Checkbutton(frame, text=text, image=img, command=command, variable=var)
+            btn = ttk.Checkbutton(
+                frame, text=text, image=img, command=command, variable=var
+            )
 
             # Original implementation uses tk Checkbuttons which have a select and deselect
             # method. These aren't available in ttk Checkbuttons, so we monkey patch the methods

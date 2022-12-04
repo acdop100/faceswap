@@ -69,4 +69,3 @@ msgstr ""
 #: ./tools/preview\preview.py:1459
 msgid "Reset {} config to saved values"
 msgstr ""
-

@@ -2,25 +2,39 @@
 """ Original - VillainGuy model
     Based on the original https://www.reddit.com/r/deepfakes/ code sample + contributions
     Adapted from a model by VillainGuy (https://github.com/VillainGuy) """
+from __future__ import annotations
 
+from .original import KerasModel
+from .original import Model as OriginalModel
 from lib.model.layers import PixelShuffler
-from lib.model.nn_blocks import (Conv2DOutput, Conv2DBlock, ResidualBlock, SeparableConv2DBlock,
-                                 UpscaleBlock)
+from lib.model.nn_blocks import Conv2DBlock
+from lib.model.nn_blocks import Conv2DOutput
+from lib.model.nn_blocks import ResidualBlock
+from lib.model.nn_blocks import SeparableConv2DBlock
+from lib.model.nn_blocks import UpscaleBlock
 from lib.utils import get_backend
-
-from .original import Model as OriginalModel, KerasModel
 
 if get_backend() == "amd":
     from keras.initializers import RandomNormal  # pylint:disable=no-name-in-module
     from keras.layers import add, Dense, Flatten, Input, LeakyReLU, Reshape
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.initializers import RandomNormal  # noqa pylint:disable=import-error,no-name-in-module
-    from tensorflow.keras.layers import add, Dense, Flatten, Input, LeakyReLU, Reshape  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.initializers import (
+        RandomNormal,
+    )  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.layers import (
+        add,
+        Dense,
+        Flatten,
+        Input,
+        LeakyReLU,
+        Reshape,
+    )  # noqa pylint:disable=import-error,no-name-in-module
 
 
 class Model(OriginalModel):
-    """ Villain Faceswap Model """
+    """Villain Faceswap Model"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_shape = (128, 128, 3)
@@ -28,7 +42,7 @@ class Model(OriginalModel):
         self.kernel_initializer = RandomNormal(0, 0.02)
 
     def encoder(self):
-        """ Encoder Network """
+        """Encoder Network"""
         kwargs = dict(kernel_initializer=self.kernel_initializer)
         input_ = Input(shape=self.input_shape)
         in_conv_filters = self.input_shape[0]
@@ -64,7 +78,7 @@ class Model(OriginalModel):
         return KerasModel(input_, var_x, name="encoder")
 
     def decoder(self, side):
-        """ Decoder Network """
+        """Decoder Network"""
         kwargs = dict(kernel_initializer=self.kernel_initializer)
         decoder_shape = self.input_shape[0] // 8
         input_ = Input(shape=(decoder_shape, decoder_shape, 512))

@@ -5,16 +5,25 @@ Based on the original https://www.reddit.com/r/deepfakes/ code sample + contribu
 This model is heavily documented as it acts as a template that other model plugins can be developed
 from.
 """
+from __future__ import annotations
 
-from lib.model.nn_blocks import Conv2DOutput, Conv2DBlock, UpscaleBlock
+from ._base import KerasModel
+from ._base import ModelBase
+from lib.model.nn_blocks import Conv2DBlock
+from lib.model.nn_blocks import Conv2DOutput
+from lib.model.nn_blocks import UpscaleBlock
 from lib.utils import get_backend
-from ._base import KerasModel, ModelBase
 
 if get_backend() == "amd":
     from keras.layers import Dense, Flatten, Reshape, Input
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.layers import Dense, Flatten, Reshape, Input  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.layers import (
+        Dense,
+        Flatten,
+        Reshape,
+        Input,
+    )  # noqa pylint:disable=import-error,no-name-in-module
 
 
 class Model(ModelBase):
@@ -43,6 +52,7 @@ class Model(ModelBase):
         The default keyword arguments passed in from :class:`~scripts.train.Train` or
         :class:`~scripts.train.Convert`
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_shape = (64, 64, 3)
@@ -51,7 +61,7 @@ class Model(ModelBase):
         self.encoder_dim = 512 if self.low_mem else 1024
 
     def build_model(self, inputs):
-        """ Create the model's structure.
+        """Create the model's structure.
 
         This function is automatically called immediately after :func:`__init__` has been called if
         a new model is being created. It is ignored if an existing model is being loaded from disk
@@ -104,7 +114,7 @@ class Model(ModelBase):
         return autoencoder
 
     def encoder(self):
-        """ The original Faceswap Encoder Network.
+        """The original Faceswap Encoder Network.
 
         The encoder for the original model has it's weights shared between both the "A" and "B"
         side of the model, so only one instance is created :func:`build_model`. However this same
@@ -130,7 +140,7 @@ class Model(ModelBase):
         return KerasModel(input_, var_x, name="encoder")
 
     def decoder(self, side):
-        """ The original Faceswap Decoder Network.
+        """The original Faceswap Decoder Network.
 
         The decoders for the original model have separate weights for each side "A" and "B", so two
         instances are created in :func:`build_model`, one for each side.
@@ -163,7 +173,9 @@ class Model(ModelBase):
         return KerasModel(input_, outputs=outputs, name=f"decoder_{side}")
 
     def _legacy_mapping(self):
-        """ The mapping of legacy separate model names to single model names """
-        return {f"{self.name}_encoder.h5": "encoder",
-                f"{self.name}_decoder_A.h5": "decoder_a",
-                f"{self.name}_decoder_B.h5": "decoder_b"}
+        """The mapping of legacy separate model names to single model names"""
+        return {
+            f"{self.name}_encoder.h5": "encoder",
+            f"{self.name}_decoder_A.h5": "decoder_a",
+            f"{self.name}_decoder_B.h5": "decoder_b",
+        }

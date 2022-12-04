@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """ Parent class for output writers for faceswap.py converter """
+from __future__ import annotations
 
 import logging
 import os
 import re
-
-from typing import Any, List, Optional
+from typing import Any
+from typing import List
+from typing import Optional
 
 import numpy as np
 
@@ -14,8 +16,8 @@ from plugins.convert._config import Config
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-def get_config(plugin_name: str, configfile: Optional[str] = None) -> dict:
-    """ Obtain the configuration settings for the writer plugin.
+def get_config(plugin_name: str, configfile: str | None = None) -> dict:
+    """Obtain the configuration settings for the writer plugin.
 
     Parameters
     ----------
@@ -33,8 +35,8 @@ def get_config(plugin_name: str, configfile: Optional[str] = None) -> dict:
     return Config(plugin_name, configfile=configfile).config_dict
 
 
-class Output():
-    """ Parent class for writer plugins.
+class Output:
+    """Parent class for writer plugins.
 
     Parameters
     ----------
@@ -44,11 +46,16 @@ class Output():
         The full path to a custom configuration ini file. If ``None`` is passed
         then the file is loaded from the default location. Default: ``None``.
     """
-    def __init__(self, output_folder: str, configfile: Optional[str] = None) -> None:
-        logger.debug("Initializing %s: (output_folder: '%s')",
-                     self.__class__.__name__, output_folder)
-        self.config: dict = get_config(".".join(self.__module__.split(".")[-2:]),
-                                       configfile=configfile)
+
+    def __init__(self, output_folder: str, configfile: str | None = None) -> None:
+        logger.debug(
+            "Initializing %s: (output_folder: '%s')",
+            self.__class__.__name__,
+            output_folder,
+        )
+        self.config: dict = get_config(
+            ".".join(self.__module__.split(".")[-2:]), configfile=configfile
+        )
         logger.debug("config: %s", self.config)
         self.output_folder: str = output_folder
 
@@ -62,15 +69,15 @@ class Output():
 
     @property
     def is_stream(self) -> bool:
-        """ bool: Whether the writer outputs a stream or a series images.
+        """bool: Whether the writer outputs a stream or a series images.
 
         Writers that write to a stream have a frame_order paramater to dictate
-        the order in which frames should be written out (eg. gif/ffmpeg) """
+        the order in which frames should be written out (eg. gif/ffmpeg)"""
         retval = hasattr(self, "frame_order")
         return retval
 
-    def output_filename(self, filename: str, separate_mask: bool = False) -> List[str]:
-        """ Obtain the full path for the output file, including the correct extension, for the
+    def output_filename(self, filename: str, separate_mask: bool = False) -> list[str]:
+        """Obtain the full path for the output file, including the correct extension, for the
         given input filename.
 
         NB: The plugin must have a config item 'format' that contains the file extension to use
@@ -101,11 +108,13 @@ class Output():
             for location in locations:
                 os.makedirs(location, exist_ok=True)
 
-        logger.trace("in filename: '%s', out filename: '%s'", filename, retval)  # type:ignore
+        logger.trace(
+            "in filename: '%s', out filename: '%s'", filename, retval
+        )  # type:ignore
         return retval
 
     def cache_frame(self, filename: str, image: np.ndarray) -> None:
-        """ Add the incoming converted frame to the cache ready for writing out.
+        """Add the incoming converted frame to the cache ready for writing out.
 
         Used for ffmpeg and gif writers to ensure that the frames are written out in the correct
         order.
@@ -125,7 +134,7 @@ class Output():
         logger.trace("Current cache: %s", sorted(self.cache.keys()))  # type:ignore
 
     def write(self, filename: str, image: Any) -> None:
-        """ Override for specific frame writing method.
+        """Override for specific frame writing method.
 
         Parameters
         ----------
@@ -138,7 +147,7 @@ class Output():
         raise NotImplementedError
 
     def pre_encode(self, image: np.ndarray) -> Any:  # pylint: disable=unused-argument
-        """ Some writer plugins support the pre-encoding of images prior to saving out. As
+        """Some writer plugins support the pre-encoding of images prior to saving out. As
         patching is done in multiple threads, but writing is done in a single thread, it can
         speed up the process to do any pre-encoding as part of the converter process.
 
@@ -159,5 +168,5 @@ class Output():
         return None
 
     def close(self) -> None:
-        """ Override for specific converted frame writing close methods """
+        """Override for specific converted frame writing close methods"""
         raise NotImplementedError

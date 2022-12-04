@@ -10,17 +10,27 @@ Handles configuration of model plugins for:
     - Optimizer settings
     - General global model configuration settings
 """
-from dataclasses import dataclass, field
+from __future__ import annotations
+
 import logging
 import platform
 import sys
-
 from contextlib import nullcontext
-from typing import Any, Callable, ContextManager, Dict, List, Optional, TYPE_CHECKING, Union
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Callable
+from typing import ContextManager
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Union
 
 import tensorflow as tf
 
-from lib.model import losses, optimizers
+from lib.model import losses
+from lib.model import optimizers
 from lib.utils import get_backend
 
 if get_backend() == "amd":
@@ -37,10 +47,7 @@ else:
     from lib.model.autoclip import AutoClipper  # pylint:disable=ungrouped-imports
 
 
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from typing import Literal
 
 if TYPE_CHECKING:
     from argparse import Namespace
@@ -51,7 +58,7 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 @dataclass
 class LossClass:
-    """ Typing class for holding loss functions.
+    """Typing class for holding loss functions.
 
     Parameters
     ----------
@@ -64,13 +71,14 @@ class LossClass:
     kwargs: dict
         Any keyword arguments to supply to the loss function at initialization.
     """
-    function: Union[Callable[[tf.Tensor, tf.Tensor], tf.Tensor], Any] = k_losses.mae
+
+    function: Callable[[tf.Tensor, tf.Tensor], tf.Tensor] | Any = k_losses.mae
     init: bool = True
-    kwargs: Dict[str, Any] = field(default_factory=dict)
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
 
-class Loss():
-    """ Holds loss names and functions for an Autoencoder.
+class Loss:
+    """Holds loss names and functions for an Autoencoder.
 
     Parameters
     ----------
@@ -79,67 +87,73 @@ class Loss():
     color_order: str
         Color order of the model. One of `"BGR"` or `"RGB"`
     """
+
     def __init__(self, config: dict, color_order: Literal["bgr", "rgb"]) -> None:
-        logger.debug("Initializing %s: (color_order: %s)", self.__class__.__name__, color_order)
+        logger.debug(
+            "Initializing %s: (color_order: %s)", self.__class__.__name__, color_order
+        )
         self._config = config
         self._mask_channels = self._get_mask_channels()
-        self._inputs: List[keras.layers.Layer] = []
-        self._names: List[str] = []
-        self._funcs: Dict[str, Callable] = {}
+        self._inputs: list[keras.layers.Layer] = []
+        self._names: list[str] = []
+        self._funcs: dict[str, Callable] = {}
 
         logcosh = losses.LogCosh() if get_backend() == "amd" else k_losses.logcosh
-        self._loss_dict = dict(ffl=LossClass(function=losses.FocalFrequencyLoss),
-                               flip=LossClass(function=losses.LDRFLIPLoss,
-                                              kwargs=dict(color_order=color_order)),
-                               gmsd=LossClass(function=losses.GMSDLoss),
-                               l_inf_norm=LossClass(function=losses.LInfNorm),
-                               laploss=LossClass(function=losses.LaplacianPyramidLoss),
-                               logcosh=LossClass(function=logcosh,
-                                                 init=False),
-                               lpips_alex=LossClass(function=losses.LPIPSLoss,
-                                                    kwargs=dict(trunk_network="alex")),
-                               lpips_squeeze=LossClass(function=losses.LPIPSLoss,
-                                                       kwargs=dict(trunk_network="squeeze")),
-                               lpips_vgg16=LossClass(function=losses.LPIPSLoss,
-                                                     kwargs=dict(trunk_network="vgg16")),
-                               ms_ssim=LossClass(function=losses.MSSIMLoss),
-                               mae=LossClass(function=k_losses.mean_absolute_error,
-                                             init=False),
-                               mse=LossClass(function=k_losses.mean_squared_error,
-                                             init=False),
-                               pixel_gradient_diff=LossClass(function=losses.GradientLoss),
-                               ssim=LossClass(function=losses.DSSIMObjective),
-                               smooth_loss=LossClass(function=losses.GeneralizedLoss))
+        self._loss_dict = dict(
+            ffl=LossClass(function=losses.FocalFrequencyLoss),
+            flip=LossClass(
+                function=losses.LDRFLIPLoss, kwargs=dict(color_order=color_order)
+            ),
+            gmsd=LossClass(function=losses.GMSDLoss),
+            l_inf_norm=LossClass(function=losses.LInfNorm),
+            laploss=LossClass(function=losses.LaplacianPyramidLoss),
+            logcosh=LossClass(function=logcosh, init=False),
+            lpips_alex=LossClass(
+                function=losses.LPIPSLoss, kwargs=dict(trunk_network="alex")
+            ),
+            lpips_squeeze=LossClass(
+                function=losses.LPIPSLoss, kwargs=dict(trunk_network="squeeze")
+            ),
+            lpips_vgg16=LossClass(
+                function=losses.LPIPSLoss, kwargs=dict(trunk_network="vgg16")
+            ),
+            ms_ssim=LossClass(function=losses.MSSIMLoss),
+            mae=LossClass(function=k_losses.mean_absolute_error, init=False),
+            mse=LossClass(function=k_losses.mean_squared_error, init=False),
+            pixel_gradient_diff=LossClass(function=losses.GradientLoss),
+            ssim=LossClass(function=losses.DSSIMObjective),
+            smooth_loss=LossClass(function=losses.GeneralizedLoss),
+        )
 
         logger.debug("Initialized: %s", self.__class__.__name__)
 
     @property
-    def names(self) -> List[str]:
-        """ list: The list of loss names for the model. """
+    def names(self) -> list[str]:
+        """list: The list of loss names for the model."""
         return self._names
 
     @property
     def functions(self) -> dict:
-        """ dict: The loss functions that apply to each model output. """
+        """dict: The loss functions that apply to each model output."""
         return self._funcs
 
     @property
-    def _mask_inputs(self) -> Optional[list]:
-        """ list: The list of input tensors to the model that contain the mask. Returns ``None``
-        if there is no mask input to the model. """
+    def _mask_inputs(self) -> list | None:
+        """list: The list of input tensors to the model that contain the mask. Returns ``None``
+        if there is no mask input to the model."""
         mask_inputs = [inp for inp in self._inputs if inp.name.startswith("mask")]
         return None if not mask_inputs else mask_inputs
 
     @property
-    def _mask_shapes(self) -> Optional[List[tuple]]:
-        """ list: The list of shape tuples for the mask input tensors for the model. Returns
-        ``None`` if there is no mask input. """
+    def _mask_shapes(self) -> list[tuple] | None:
+        """list: The list of shape tuples for the mask input tensors for the model. Returns
+        ``None`` if there is no mask input."""
         if self._mask_inputs is None:
             return None
         return [K.int_shape(mask_input) for mask_input in self._mask_inputs]
 
     def configure(self, model: keras.models.Model) -> None:
-        """ Configure the loss functions for the given inputs and outputs.
+        """Configure the loss functions for the given inputs and outputs.
 
         Parameters
         ----------
@@ -151,8 +165,8 @@ class Loss():
         self._set_loss_functions(model.output_names)
         self._names.insert(0, "total")
 
-    def _set_loss_names(self, outputs: List[tf.Tensor]) -> None:
-        """ Name the losses based on model output.
+    def _set_loss_names(self, outputs: list[tf.Tensor]) -> None:
+        """Name the losses based on model output.
 
         This is used for correct naming in the state file, for display purposes only.
 
@@ -171,20 +185,27 @@ class Loss():
             A list of output tensors from the model plugin
         """
         # TODO Use output names if/when these are fixed upstream
-        split_outputs = [outputs[:len(outputs) // 2], outputs[len(outputs) // 2:]]
+        split_outputs = [outputs[: len(outputs) // 2], outputs[len(outputs) // 2 :]]
         for side, side_output in zip(("a", "b"), split_outputs):
             output_names = [output.name for output in side_output]
             output_shapes = [K.int_shape(output)[1:] for output in side_output]
-            output_types = ["mask" if shape[-1] == 1 else "face" for shape in output_shapes]
-            logger.debug("side: %s, output names: %s, output_shapes: %s, output_types: %s",
-                         side, output_names, output_shapes, output_types)
+            output_types = [
+                "mask" if shape[-1] == 1 else "face" for shape in output_shapes
+            ]
+            logger.debug(
+                "side: %s, output names: %s, output_shapes: %s, output_types: %s",
+                side,
+                output_names,
+                output_shapes,
+                output_types,
+            )
             for idx, name in enumerate(output_types):
                 suffix = "" if output_types.count(name) == 1 else f"_{idx}"
                 self._names.append(f"{name}_{side}{suffix}")
         logger.debug(self._names)
 
     def _get_function(self, name: str) -> Callable[[tf.Tensor, tf.Tensor], tf.Tensor]:
-        """ Obtain the requested Loss function
+        """Obtain the requested Loss function
 
         Parameters
         ----------
@@ -197,12 +218,14 @@ class Loss():
             The requested loss function
         """
         func = self._loss_dict[name]
-        retval = func.function(**func.kwargs) if func.init else func.function  # type:ignore
+        retval = (
+            func.function(**func.kwargs) if func.init else func.function
+        )  # type:ignore
         logger.debug("Obtained loss function `%s` (%s)", name, retval)
         return retval
 
-    def _set_loss_functions(self, output_names: List[str]):
-        """ Set the loss functions and their associated weights.
+    def _set_loss_functions(self, output_names: list[str]):
+        """Set the loss functions and their associated weights.
 
         Adds the loss functions to the :attr:`functions` dictionary.
 
@@ -211,11 +234,13 @@ class Loss():
         output_names: list
             The output names from the model
         """
-        face_losses = [(lossname, self._config.get(f"loss_weight_{k[-1]}", 100))
-                       for k, lossname in sorted(self._config.items())
-                       if k.startswith("loss_function")
-                       and self._config.get(f"loss_weight_{k[-1]}", 100) != 0
-                       and lossname is not None]
+        face_losses = [
+            (lossname, self._config.get(f"loss_weight_{k[-1]}", 100))
+            for k, lossname in sorted(self._config.items())
+            if k.startswith("loss_function")
+            and self._config.get(f"loss_weight_{k[-1]}", 100) != 0
+            and lossname is not None
+        ]
 
         for name, output_name in zip(self._names, output_names):
             if name.startswith("mask"):
@@ -223,17 +248,18 @@ class Loss():
             else:
                 loss_func = losses.LossWrapper()
                 for func, weight in face_losses:
-                    self._add_face_loss_function(loss_func, func, weight / 100.)
+                    self._add_face_loss_function(loss_func, func, weight / 100.0)
 
-            logger.debug("%s: (output_name: '%s', function: %s)", name, output_name, loss_func)
+            logger.debug(
+                "%s: (output_name: '%s', function: %s)", name, output_name, loss_func
+            )
             self._funcs[output_name] = loss_func
         logger.debug("functions: %s", self._funcs)
 
-    def _add_face_loss_function(self,
-                                loss_wrapper: losses.LossWrapper,
-                                loss_function: str,
-                                weight: float) -> None:
-        """ Add the given face loss function at the given weight and apply any mouth and eye
+    def _add_face_loss_function(
+        self, loss_wrapper: losses.LossWrapper, loss_function: str, weight: float
+    ) -> None:
+        """Add the given face loss function at the given weight and apply any mouth and eye
         multipliers
 
         Parameters
@@ -246,23 +272,27 @@ class Loss():
             The amount of weight to apply to the given loss function
         """
         logger.debug("Adding loss function: %s, weight: %s", loss_function, weight)
-        loss_wrapper.add_loss(self._get_function(loss_function),
-                              weight=weight,
-                              mask_channel=self._mask_channels[0])
+        loss_wrapper.add_loss(
+            self._get_function(loss_function),
+            weight=weight,
+            mask_channel=self._mask_channels[0],
+        )
 
         channel_idx = 1
         for section in ("eye_multiplier", "mouth_multiplier"):
             mask_channel = self._mask_channels[channel_idx]
-            multiplier = self._config[section] * 1.
-            if multiplier > 1.:
+            multiplier = self._config[section] * 1.0
+            if multiplier > 1.0:
                 logger.debug("Adding section loss %s: %s", section, multiplier)
-                loss_wrapper.add_loss(self._get_function(loss_function),
-                                      weight=weight * multiplier,
-                                      mask_channel=mask_channel)
+                loss_wrapper.add_loss(
+                    self._get_function(loss_function),
+                    weight=weight * multiplier,
+                    mask_channel=mask_channel,
+                )
             channel_idx += 1
 
-    def _get_mask_channels(self) -> List[int]:
-        """ Obtain the channels from the face targets that the masks reside in from the training
+    def _get_mask_channels(self) -> list[int]:
+        """Obtain the channels from the face targets that the masks reside in from the training
         data generator.
 
         Returns
@@ -272,15 +302,20 @@ class Loss():
         """
         eye_multiplier = self._config["eye_multiplier"]
         mouth_multiplier = self._config["mouth_multiplier"]
-        if not self._config["penalized_mask_loss"] and (eye_multiplier > 1 or
-                                                        mouth_multiplier > 1):
-            logger.warning("You have selected eye/mouth loss multipliers greater than 1x, but "
-                           "Penalized Mask Loss is disabled. Disabling all multipliers.")
+        if not self._config["penalized_mask_loss"] and (
+            eye_multiplier > 1 or mouth_multiplier > 1
+        ):
+            logger.warning(
+                "You have selected eye/mouth loss multipliers greater than 1x, but "
+                "Penalized Mask Loss is disabled. Disabling all multipliers."
+            )
             eye_multiplier = 1
             mouth_multiplier = 1
-        uses_masks = (self._config["penalized_mask_loss"],
-                      eye_multiplier > 1,
-                      mouth_multiplier > 1)
+        uses_masks = (
+            self._config["penalized_mask_loss"],
+            eye_multiplier > 1,
+            mouth_multiplier > 1,
+        )
         mask_channels = [-1 for _ in range(len(uses_masks))]
         current_channel = 3
         for idx, mask_required in enumerate(uses_masks):
@@ -291,8 +326,8 @@ class Loss():
         return mask_channels
 
 
-class Optimizer():  # pylint:disable=too-few-public-methods
-    """ Obtain the selected optimizer with the appropriate keyword arguments.
+class Optimizer:  # pylint:disable=too-few-public-methods
+    """Obtain the selected optimizer with the appropriate keyword arguments.
 
     Parameters
     ----------
@@ -305,24 +340,31 @@ class Optimizer():  # pylint:disable=too-few-public-methods
     epsilon: float
         The value to use for the epsilon of the optimizer
     """
-    def __init__(self,
-                 optimizer: str,
-                 learning_rate: float,
-                 autoclip: bool,
-                 epsilon: float) -> None:
-        logger.debug("Initializing %s: (optimizer: %s, learning_rate: %s, autoclip: %s, "
-                     ", epsilon: %s)", self.__class__.__name__, optimizer, learning_rate,
-                     autoclip, epsilon)
-        valid_optimizers = {"adabelief": (optimizers.AdaBelief,
-                                          dict(beta_1=0.5, beta_2=0.99, epsilon=epsilon)),
-                            "adam": (optimizers.Adam,
-                                     dict(beta_1=0.5, beta_2=0.99, epsilon=epsilon)),
-                            "nadam": (optimizers.Nadam,
-                                      dict(beta_1=0.5, beta_2=0.99, epsilon=epsilon)),
-                            "rms-prop": (optimizers.RMSprop, dict(epsilon=epsilon))}
+
+    def __init__(
+        self, optimizer: str, learning_rate: float, autoclip: bool, epsilon: float
+    ) -> None:
+        logger.debug(
+            "Initializing %s: (optimizer: %s, learning_rate: %s, autoclip: %s, "
+            ", epsilon: %s)",
+            self.__class__.__name__,
+            optimizer,
+            learning_rate,
+            autoclip,
+            epsilon,
+        )
+        valid_optimizers = {
+            "adabelief": (
+                optimizers.AdaBelief,
+                dict(beta_1=0.5, beta_2=0.99, epsilon=epsilon),
+            ),
+            "adam": (optimizers.Adam, dict(beta_1=0.5, beta_2=0.99, epsilon=epsilon)),
+            "nadam": (optimizers.Nadam, dict(beta_1=0.5, beta_2=0.99, epsilon=epsilon)),
+            "rms-prop": (optimizers.RMSprop, dict(epsilon=epsilon)),
+        }
         optimizer_info = valid_optimizers[optimizer]
         self._optimizer: Callable = optimizer_info[0]
-        self._kwargs: Dict[str, Any] = optimizer_info[1]
+        self._kwargs: dict[str, Any] = optimizer_info[1]
 
         self._configure(learning_rate, autoclip)
         logger.verbose("Using %s optimizer", optimizer.title())  # type:ignore
@@ -330,13 +372,11 @@ class Optimizer():  # pylint:disable=too-few-public-methods
 
     @property
     def optimizer(self) -> keras.optimizers.Optimizer:
-        """ :class:`keras.optimizers.Optimizer`: The requested optimizer. """
+        """:class:`keras.optimizers.Optimizer`: The requested optimizer."""
         return self._optimizer(**self._kwargs)
 
-    def _configure(self,
-                   learning_rate: float,
-                   autoclip: bool) -> None:
-        """ Configure the optimizer based on user settings.
+    def _configure(self, learning_rate: float, autoclip: bool) -> None:
+        """Configure the optimizer based on user settings.
 
         Parameters
         ----------
@@ -365,8 +405,8 @@ class Optimizer():  # pylint:disable=too-few-public-methods
         logger.debug("optimizer kwargs: %s", self._kwargs)
 
 
-class Settings():
-    """ Tensorflow core training settings.
+class Settings:
+    """Tensorflow core training settings.
 
     Sets backend tensorflow settings prior to launching the model.
 
@@ -388,14 +428,23 @@ class Settings():
         ``True`` if the model is being loaded for inference, ``False`` if the model is being loaded
         for training. Default: ``False``
     """
-    def __init__(self,
-                 arguments: "Namespace",
-                 mixed_precision: bool,
-                 allow_growth: bool,
-                 is_predict: bool) -> None:
-        logger.debug("Initializing %s: (arguments: %s, mixed_precision: %s, allow_growth: %s, "
-                     "is_predict: %s)", self.__class__.__name__, arguments, mixed_precision,
-                     allow_growth, is_predict)
+
+    def __init__(
+        self,
+        arguments: Namespace,
+        mixed_precision: bool,
+        allow_growth: bool,
+        is_predict: bool,
+    ) -> None:
+        logger.debug(
+            "Initializing %s: (arguments: %s, mixed_precision: %s, allow_growth: %s, "
+            "is_predict: %s)",
+            self.__class__.__name__,
+            arguments,
+            mixed_precision,
+            allow_growth,
+            is_predict,
+        )
         self._set_tf_settings(allow_growth, arguments.exclude_gpus)
 
         use_mixed_precision = not is_predict and mixed_precision
@@ -412,14 +461,14 @@ class Settings():
 
     @property
     def use_mixed_precision(self) -> bool:
-        """ bool: ``True`` if mixed precision training has been enabled, otherwise ``False``. """
+        """bool: ``True`` if mixed precision training has been enabled, otherwise ``False``."""
         return self._use_mixed_precision
 
     @classmethod
     def loss_scale_optimizer(
-            cls,
-            optimizer: keras.optimizers.Optimizer) -> mixedprecision.LossScaleOptimizer:
-        """ Optimize loss scaling for mixed precision training.
+        cls, optimizer: keras.optimizers.Optimizer
+    ) -> mixedprecision.LossScaleOptimizer:
+        """Optimize loss scaling for mixed precision training.
 
         Parameters
         ----------
@@ -434,8 +483,8 @@ class Settings():
         return mixedprecision.LossScaleOptimizer(optimizer)
 
     @classmethod
-    def _set_tf_settings(cls, allow_growth: bool, exclude_devices: List[int]) -> None:
-        """ Specify Devices to place operations on and Allow TensorFlow to manage VRAM growth.
+    def _set_tf_settings(cls, allow_growth: bool, exclude_devices: list[int]) -> None:
+        """Specify Devices to place operations on and Allow TensorFlow to manage VRAM growth.
 
         Enables the Tensorflow allow_growth option if requested in the command line arguments
 
@@ -458,7 +507,7 @@ class Settings():
             logger.debug("Not setting any specific Tensorflow settings")
             return
 
-        gpus = tf.config.list_physical_devices('GPU')
+        gpus = tf.config.list_physical_devices("GPU")
         if exclude_devices:
             gpus = [gpu for idx, gpu in enumerate(gpus) if idx not in exclude_devices]
             logger.debug("Filtering devices to: %s", gpus)
@@ -473,7 +522,7 @@ class Settings():
 
     @classmethod
     def _set_keras_mixed_precision(cls, use_mixed_precision: bool) -> bool:
-        """ Enable the Keras experimental Mixed Precision API.
+        """Enable the Keras experimental Mixed Precision API.
 
         Enables the Keras experimental Mixed Precision API if requested in the user configuration
         file.
@@ -491,27 +540,37 @@ class Settings():
         """
         logger.debug("use_mixed_precision: %s", use_mixed_precision)
         if get_backend() == "amd":
-            logger.debug("No action to perform for 'mixed_precision' on backend '%s': "
-                         "use_mixed_precision: %s)", get_backend(), use_mixed_precision)
+            logger.debug(
+                "No action to perform for 'mixed_precision' on backend '%s': "
+                "use_mixed_precision: %s)",
+                get_backend(),
+                use_mixed_precision,
+            )
             return False
 
         if not use_mixed_precision:
-            policy = mixedprecision.Policy('float32')
+            policy = mixedprecision.Policy("float32")
             mixedprecision.set_global_policy(policy)
-            logger.debug("Disabling mixed precision. (Compute dtype: %s, variable_dtype: %s)",
-                         policy.compute_dtype, policy.variable_dtype)
+            logger.debug(
+                "Disabling mixed precision. (Compute dtype: %s, variable_dtype: %s)",
+                policy.compute_dtype,
+                policy.variable_dtype,
+            )
             return False
 
-        policy = mixedprecision.Policy('mixed_float16')
+        policy = mixedprecision.Policy("mixed_float16")
         mixedprecision.set_global_policy(policy)
-        logger.debug("Enabled mixed precision. (Compute dtype: %s, variable_dtype: %s)",
-                     policy.compute_dtype, policy.variable_dtype)
+        logger.debug(
+            "Enabled mixed precision. (Compute dtype: %s, variable_dtype: %s)",
+            policy.compute_dtype,
+            policy.variable_dtype,
+        )
         return True
 
-    def _get_strategy(self,
-                      strategy: Literal["default", "central-storage", "mirrored"]
-                      ) -> Optional[tf.distribute.Strategy]:
-        """ If we are running on Nvidia backend and the strategy is not ``None`` then return
+    def _get_strategy(
+        self, strategy: Literal["default", "central-storage", "mirrored"]
+    ) -> tf.distribute.Strategy | None:
+        """If we are running on Nvidia backend and the strategy is not ``None`` then return
         the correct tensorflow distribution strategy, otherwise return ``None``.
 
         Notes
@@ -548,7 +607,7 @@ class Settings():
 
     @classmethod
     def _get_mirrored_strategy(cls) -> tf.distribute.MirroredStrategy:
-        """ Obtain an instance of a Tensorflow Mirrored Strategy, setting the cross device
+        """Obtain an instance of a Tensorflow Mirrored Strategy, setting the cross device
         operations appropriate for the OS in use.
 
         Returns
@@ -564,8 +623,10 @@ class Settings():
         return tf.distribute.MirroredStrategy(cross_device_ops=cross_device_ops)
 
     @classmethod
-    def _get_central_storage_strategy(cls) -> tf.distribute.experimental.CentralStorageStrategy:
-        """ Obtain an instance of a Tensorflow Central Storage Strategy. If the strategy is being
+    def _get_central_storage_strategy(
+        cls,
+    ) -> tf.distribute.experimental.CentralStorageStrategy:
+        """Obtain an instance of a Tensorflow Central Storage Strategy. If the strategy is being
         run on a single GPU then monkey patch Tensorflows mixed-precision strategy checks to pass
         successfully.
 
@@ -577,7 +638,9 @@ class Settings():
         gpus = tf.config.get_visible_devices("GPU")
         if len(gpus) == 1:
             # TODO Remove these monkey patches when Strategy supports mixed-precision
-            from keras.mixed_precision import loss_scale_optimizer  # noqa pylint:disable=import-outside-toplevel
+            from keras.mixed_precision import (
+                loss_scale_optimizer,
+            )  # noqa pylint:disable=import-outside-toplevel
 
             # Force a return of True on Loss Scale Optimizer Stategy check
             loss_scale_optimizer.strategy_supports_loss_scaling = lambda: True
@@ -589,13 +652,20 @@ class Settings():
             # the `experimental_aggregate_gradients` back to `True`. In brief testing this does not
             # appear to have a negative impact.
             func = lambda s, grads, wvars, name: s._optimizer.apply_gradients(  # noqa pylint:disable=protected-access
-                 list(zip(grads, wvars.value)), name, experimental_aggregate_gradients=True)
-            loss_scale_optimizer.LossScaleOptimizer._apply_gradients = func  # noqa pylint:disable=protected-access
+                list(zip(grads, wvars.value)),
+                name,
+                experimental_aggregate_gradients=True,
+            )
+            loss_scale_optimizer.LossScaleOptimizer._apply_gradients = (
+                func  # noqa pylint:disable=protected-access
+            )
 
-        return tf.distribute.experimental.CentralStorageStrategy(parameter_device="/cpu:0")
+        return tf.distribute.experimental.CentralStorageStrategy(
+            parameter_device="/cpu:0"
+        )
 
-    def _get_mixed_precision_layers(self, layers: List[dict]) -> List[str]:
-        """ Obtain the names of the layers in a mixed precision model that have their dtype policy
+    def _get_mixed_precision_layers(self, layers: list[dict]) -> list[str]:
+        """Obtain the names of the layers in a mixed precision model that have their dtype policy
         explicitly set to mixed-float16.
 
         Parameters
@@ -618,14 +688,18 @@ class Settings():
 
             dtype = config["dtype"]
             if isinstance(dtype, dict) and dtype["config"]["name"] == "mixed_float16":
-                logger.debug("Adding supported mixed precision layer: %s %s", layer["name"], dtype)
+                logger.debug(
+                    "Adding supported mixed precision layer: %s %s",
+                    layer["name"],
+                    dtype,
+                )
                 retval.append(layer["name"])
             else:
                 logger.debug("Skipping unsupported layer: %s %s", layer["name"], dtype)
         return retval
 
-    def _switch_precision(self, layers: List[dict], compatible: List[str]) -> None:
-        """ Switch a model's datatype between mixed-float16 and float32.
+    def _switch_precision(self, layers: list[dict], compatible: list[str]) -> None:
+        """Switch a model's datatype between mixed-float16 and float32.
 
         Parameters
         ----------
@@ -648,15 +722,20 @@ class Settings():
                 logger.debug("Skipping incompatible layer: %s", layer["name"])
                 continue
 
-            logger.debug("Updating dtype for %s from: %s to: %s",
-                         layer["name"], config["dtype"], policy)
+            logger.debug(
+                "Updating dtype for %s from: %s to: %s",
+                layer["name"],
+                config["dtype"],
+                policy,
+            )
             config["dtype"] = policy
 
-    def get_mixed_precision_layers(self,
-                                   build_func: Callable[[List[keras.layers.Layer]],
-                                                        keras.models.Model],
-                                   inputs: List[keras.layers.Layer]) -> List[str]:
-        """ Get and store the mixed precision layers from a full precision enabled model.
+    def get_mixed_precision_layers(
+        self,
+        build_func: Callable[[list[keras.layers.Layer]], keras.models.Model],
+        inputs: list[keras.layers.Layer],
+    ) -> list[str]:
+        """Get and store the mixed precision layers from a full precision enabled model.
 
         Parameters
         ----------
@@ -671,8 +750,10 @@ class Settings():
             The list of layer names within the full precision model that can be switched
             to mixed precision
         """
-        logger.info("Storing Mixed Precision compatible layers. Please ignore any following "
-                    "warnings about using mixed precision.")
+        logger.info(
+            "Storing Mixed Precision compatible layers. Please ignore any following "
+            "warnings about using mixed precision."
+        )
         if get_backend() == "amd":
             logger.debug("Mixed Precision not supported for AMD. Returning empty list")
             return []
@@ -683,10 +764,10 @@ class Settings():
         del model
         return layers
 
-    def check_model_precision(self,
-                              model: keras.models.Model,
-                              state: "State") -> keras.models.Model:
-        """ Check the model's precision.
+    def check_model_precision(
+        self, model: keras.models.Model, state: State
+    ) -> keras.models.Model:
+        """Check the model's precision.
 
         If this is a new model, then
         Rewrite an existing model's training precsion mode from mixed-float16 to float32 or
@@ -715,27 +796,34 @@ class Settings():
             # Switching to mixed precision on a model which was started in FP32 prior to the
             # ability to switch between precisions on a saved model is not supported as we
             # do not have the compatible layer names
-            logger.warning("Switching from Full Precision to Mixed Precision is not supported on "
-                           "older model files. Reverting to Full Precision.")
+            logger.warning(
+                "Switching from Full Precision to Mixed Precision is not supported on "
+                "older model files. Reverting to Full Precision."
+            )
             return model
 
         config = model.get_config()
 
         if not self.use_mixed_precision and not state.mixed_precision_layers:
             # Switched to Full Precision, get compatible layers from model if not already stored
-            state.add_mixed_precision_layers(self._get_mixed_precision_layers(config["layers"]))
+            state.add_mixed_precision_layers(
+                self._get_mixed_precision_layers(config["layers"])
+            )
 
         self._switch_precision(config["layers"], state.mixed_precision_layers)
 
         new_model = keras.models.Model().from_config(config)
         new_model.set_weights(model.get_weights())
-        logger.info("Mixed precision has been updated from '%s' to '%s'",
-                    not self.use_mixed_precision, self.use_mixed_precision)
+        logger.info(
+            "Mixed precision has been updated from '%s' to '%s'",
+            not self.use_mixed_precision,
+            self.use_mixed_precision,
+        )
         del model
         return new_model
 
     def strategy_scope(self) -> ContextManager:
-        """ Return the strategy scope if we have set a strategy, otherwise return a null
+        """Return the strategy scope if we have set a strategy, otherwise return a null
         context.
 
         Returns

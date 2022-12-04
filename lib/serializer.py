@@ -2,13 +2,13 @@
 """
 Library for serializing python objects to and from various different serializer formats
 """
+from __future__ import annotations
 
 import json
 import logging
 import os
 import pickle
 import zlib
-
 from io import BytesIO
 
 import numpy as np
@@ -17,6 +17,7 @@ from lib.utils import FaceswapError
 
 try:
     import yaml
+
     _HAS_YAML = True
 except ImportError:
     _HAS_YAML = False
@@ -24,8 +25,8 @@ except ImportError:
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class Serializer():
-    """ A convenience class for various serializers.
+class Serializer:
+    """A convenience class for various serializers.
 
     This class should not be called directly as it acts as the parent for various serializers.
     All serializers should be called from :func:`get_serializer` or
@@ -40,6 +41,7 @@ class Serializer():
     >>> serializer.save(json_file, data)
 
     """
+
     def __init__(self):
         self._file_extension = None
         self._write_option = "wb"
@@ -47,11 +49,11 @@ class Serializer():
 
     @property
     def file_extension(self):
-        """ str: The file extension of the serializer """
+        """str: The file extension of the serializer"""
         return self._file_extension
 
     def save(self, filename, data):
-        """ Serialize data and save to a file
+        """Serialize data and save to a file
 
         Parameters
         ----------
@@ -72,19 +74,19 @@ class Serializer():
         try:
             with open(filename, self._write_option) as s_file:
                 s_file.write(self.marshal(data))
-        except IOError as err:
+        except OSError as err:
             msg = f"Error writing to '{filename}': {err.strerror}"
             raise FaceswapError(msg) from err
 
     def _check_extension(self, filename):
-        """ Check the filename has an extension. If not add the correct one for the serializer """
+        """Check the filename has an extension. If not add the correct one for the serializer"""
         extension = os.path.splitext(filename)[1]
         retval = filename if extension else f"{filename}.{self.file_extension}"
         logger.debug("Original filename: '%s', final filename: '%s'", filename, retval)
         return retval
 
     def load(self, filename):
-        """ Load data from an existing serialized file
+        """Load data from an existing serialized file
 
         Parameters
         ----------
@@ -109,14 +111,14 @@ class Serializer():
                 logger.debug("stored data type: %s", type(data))
                 retval = self.unmarshal(data)
 
-        except IOError as err:
+        except OSError as err:
             msg = f"Error reading from '{filename}': {err.strerror}"
             raise FaceswapError(msg) from err
         logger.debug("data type: %s", type(retval))
         return retval
 
     def marshal(self, data):
-        """ Serialize an object
+        """Serialize an object
 
         Parameters
         ----------
@@ -144,7 +146,7 @@ class Serializer():
         return retval
 
     def unmarshal(self, serialized_data):
-        """ Unserialize data to its original object type
+        """Unserialize data to its original object type
 
         Parameters
         ----------
@@ -166,24 +168,27 @@ class Serializer():
         try:
             retval = self._unmarshal(serialized_data)
         except Exception as err:
-            msg = f"Error unserializing data for type {type(serialized_data)}: {str(err)}"
+            msg = (
+                f"Error unserializing data for type {type(serialized_data)}: {str(err)}"
+            )
             raise FaceswapError(msg) from err
         logger.debug("returned data type: %s", type(retval))
         return retval
 
     @classmethod
     def _marshal(cls, data):
-        """ Override for serializer specific marshalling """
+        """Override for serializer specific marshalling"""
         raise NotImplementedError()
 
     @classmethod
     def _unmarshal(cls, data):
-        """ Override for serializer specific unmarshalling """
+        """Override for serializer specific unmarshalling"""
         raise NotImplementedError()
 
 
 class _YAMLSerializer(Serializer):
-    """ YAML Serializer """
+    """YAML Serializer"""
+
     def __init__(self):
         super().__init__()
         self._file_extension = "yml"
@@ -198,7 +203,8 @@ class _YAMLSerializer(Serializer):
 
 
 class _JSONSerializer(Serializer):
-    """ JSON Serializer """
+    """JSON Serializer"""
+
     def __init__(self):
         super().__init__()
         self._file_extension = "json"
@@ -213,7 +219,8 @@ class _JSONSerializer(Serializer):
 
 
 class _PickleSerializer(Serializer):
-    """ Pickle Serializer """
+    """Pickle Serializer"""
+
     def __init__(self):
         super().__init__()
         self._file_extension = "pickle"
@@ -228,21 +235,22 @@ class _PickleSerializer(Serializer):
 
 
 class _NPYSerializer(Serializer):
-    """ NPY Serializer """
+    """NPY Serializer"""
+
     def __init__(self):
         super().__init__()
         self._file_extension = "npy"
         self._bytes = BytesIO()
 
     def _marshal(self, data):
-        """ NPY Marshal to bytesIO so standard bytes writer can write out """
+        """NPY Marshal to bytesIO so standard bytes writer can write out"""
         b_handler = BytesIO()
         np.save(b_handler, data)
         b_handler.seek(0)
         return b_handler.read()
 
     def _unmarshal(self, data):
-        """ NPY Unmarshal to bytesIO so we can use numpy loader """
+        """NPY Unmarshal to bytesIO so we can use numpy loader"""
         b_handler = BytesIO(data)
         retval = np.load(b_handler)
         del b_handler
@@ -252,25 +260,26 @@ class _NPYSerializer(Serializer):
 
 
 class _CompressedSerializer(Serializer):
-    """ A compressed pickle serializer for Faceswap """
+    """A compressed pickle serializer for Faceswap"""
+
     def __init__(self):
         super().__init__()
         self._file_extension = "fsa"
         self._child = get_serializer("pickle")
 
     def _marshal(self, data):
-        """ Pickle and compress data """
+        """Pickle and compress data"""
         data = self._child._marshal(data)  # pylint: disable=protected-access
         return zlib.compress(data)
 
     def _unmarshal(self, data):
-        """ Decompress and unpicke data """
+        """Decompress and unpicke data"""
         data = zlib.decompress(data)
         return self._child._unmarshal(data)  # pylint: disable=protected-access
 
 
 def get_serializer(serializer):
-    """ Obtain a serializer object
+    """Obtain a serializer object
 
     Parameters
     ----------
@@ -297,17 +306,21 @@ def get_serializer(serializer):
     elif serializer.lower() == "yaml" and _HAS_YAML:
         retval = _YAMLSerializer()
     elif serializer.lower() == "yaml":
-        logger.warning("You must have PyYAML installed to use YAML as the serializer."
-                       "Switching to JSON as the serializer.")
+        logger.warning(
+            "You must have PyYAML installed to use YAML as the serializer."
+            "Switching to JSON as the serializer."
+        )
         retval = _JSONSerializer
     else:
-        logger.warning("Unrecognized serializer: '%s'. Returning json serializer", serializer)
+        logger.warning(
+            "Unrecognized serializer: '%s'. Returning json serializer", serializer
+        )
     logger.debug(retval)
     return retval
 
 
 def get_serializer_from_filename(filename):
-    """ Obtain a serializer object from a filename
+    """Obtain a serializer object from a filename
 
     Parameters
     ----------
@@ -339,11 +352,15 @@ def get_serializer_from_filename(filename):
     elif extension in (".yaml", ".yml") and _HAS_YAML:
         retval = _YAMLSerializer()
     elif extension in (".yaml", ".yml"):
-        logger.warning("You must have PyYAML installed to use YAML as the serializer.\n"
-                       "Switching to JSON as the serializer.")
+        logger.warning(
+            "You must have PyYAML installed to use YAML as the serializer.\n"
+            "Switching to JSON as the serializer."
+        )
         retval = _JSONSerializer()
     else:
-        logger.warning("Unrecognized extension: '%s'. Returning json serializer", extension)
+        logger.warning(
+            "Unrecognized extension: '%s'. Returning json serializer", extension
+        )
         retval = _JSONSerializer()
     logger.debug(retval)
     return retval

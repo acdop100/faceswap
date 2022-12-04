@@ -1,27 +1,38 @@
 #!/usr/bin/env python3
 """ DFaker Model
     Based on the dfaker model: https://github.com/dfaker """
+from __future__ import annotations
+
 import logging
 import sys
 
-from lib.model.nn_blocks import Conv2DOutput, UpscaleBlock, ResidualBlock
+from .original import KerasModel
+from .original import Model as OriginalModel
+from lib.model.nn_blocks import Conv2DOutput
+from lib.model.nn_blocks import ResidualBlock
+from lib.model.nn_blocks import UpscaleBlock
 from lib.utils import get_backend
-from .original import Model as OriginalModel, KerasModel
 
 if get_backend() == "amd":
     from keras.initializers import RandomNormal  # pylint:disable=no-name-in-module
     from keras.layers import Input, LeakyReLU
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.initializers import RandomNormal  # noqa pylint:disable=import-error,no-name-in-module
-    from tensorflow.keras.layers import Input, LeakyReLU  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.initializers import (
+        RandomNormal,
+    )  # noqa pylint:disable=import-error,no-name-in-module
+    from tensorflow.keras.layers import (
+        Input,
+        LeakyReLU,
+    )  # noqa pylint:disable=import-error,no-name-in-module
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class Model(OriginalModel):
-    """ Dfaker Model """
+    """Dfaker Model"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._output_size = self.config["output_size"]
@@ -33,14 +44,16 @@ class Model(OriginalModel):
         self.kernel_initializer = RandomNormal(0, 0.02)
 
     def decoder(self, side):
-        """ Decoder Network """
+        """Decoder Network"""
         input_ = Input(shape=(8, 8, 512))
         var_x = input_
 
         if self._output_size == 256:
             var_x = UpscaleBlock(1024, activation=None)(var_x)
             var_x = LeakyReLU(alpha=0.2)(var_x)
-            var_x = ResidualBlock(1024, kernel_initializer=self.kernel_initializer)(var_x)
+            var_x = ResidualBlock(1024, kernel_initializer=self.kernel_initializer)(
+                var_x
+            )
         var_x = UpscaleBlock(512, activation=None)(var_x)
         var_x = LeakyReLU(alpha=0.2)(var_x)
         var_x = ResidualBlock(512, kernel_initializer=self.kernel_initializer)(var_x)

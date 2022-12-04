@@ -5,38 +5,59 @@ https://arxiv.org/abs/1708.05237
 Adapted from S3FD Port in FAN:
 https://github.com/1adrianb/face-alignment
 """
+from __future__ import annotations
+
 import logging
-from typing import List, Optional, Tuple
+from typing import List
+from typing import Optional
+from typing import Tuple
 
-from scipy.special import logsumexp
 import numpy as np
+from scipy.special import logsumexp
 
+from ._base import BatchType
+from ._base import Detector
 from lib.model.session import KSession
 from lib.utils import get_backend
-from ._base import BatchType, Detector
 
 if get_backend() == "amd":
     import keras
     from keras import backend as K
-    from keras.layers import Concatenate, Conv2D, Input, Maximum, MaxPooling2D, ZeroPadding2D
+    from keras.layers import (
+        Concatenate,
+        Conv2D,
+        Input,
+        Maximum,
+        MaxPooling2D,
+        ZeroPadding2D,
+    )
     from plaidml.tile import Value as Tensor  # pylint:disable=import-error
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
     from tensorflow import keras
     from tensorflow.keras import backend as K  # pylint:disable=import-error
     from tensorflow.keras.layers import (  # pylint:disable=no-name-in-module,import-error
-        Concatenate, Conv2D, Input, Maximum, MaxPooling2D, ZeroPadding2D)
+        Concatenate,
+        Conv2D,
+        Input,
+        Maximum,
+        MaxPooling2D,
+        ZeroPadding2D,
+    )
     from tensorflow import Tensor
 
 logger = logging.getLogger(__name__)
 
 
 class Detect(Detector):
-    """ S3FD detector for face recognition """
+    """S3FD detector for face recognition"""
+
     def __init__(self, **kwargs) -> None:
         git_model_id = 11
         model_filename = "s3fd_keras_v2.h5"
-        super().__init__(git_model_id=git_model_id, model_filename=model_filename, **kwargs)
+        super().__init__(
+            git_model_id=git_model_id, model_filename=model_filename, **kwargs
+        )
         self.name = "S3FD"
         self.input_size = 640
         self.vram = 4112
@@ -45,30 +66,32 @@ class Detect(Detector):
         self.batchsize = self.config["batch-size"]
 
     def init_model(self) -> None:
-        """ Initialize S3FD Model"""
+        """Initialize S3FD Model"""
         assert isinstance(self.model_path, str)
         confidence = self.config["confidence"] / 100
         model_kwargs = dict(custom_objects=dict(L2Norm=L2Norm, SliceO2K=SliceO2K))
-        self.model = S3fd(self.model_path,
-                          model_kwargs,
-                          self.config["allow_growth"],
-                          self._exclude_gpus,
-                          confidence)
+        self.model = S3fd(
+            self.model_path,
+            model_kwargs,
+            self.config["allow_growth"],
+            self._exclude_gpus,
+            confidence,
+        )
 
     def process_input(self, batch: BatchType) -> None:
-        """ Compile the detection image(s) for prediction """
+        """Compile the detection image(s) for prediction"""
         assert isinstance(self.model, S3fd)
         batch.feed = self.model.prepare_batch(np.array(batch.image))
 
     def predict(self, feed: np.ndarray) -> np.ndarray:
-        """ Run model to get predictions """
+        """Run model to get predictions"""
         assert isinstance(self.model, S3fd)
         predictions = self.model.predict(feed)
         assert isinstance(predictions, list)
         return self.model.finalize_predictions(predictions)
 
     def process_output(self, batch) -> None:
-        """ Compile found faces for output """
+        """Compile found faces for output"""
         return
 
 
@@ -76,7 +99,7 @@ class Detect(Detector):
 # CUSTOM KERAS LAYERS
 ################################################################################
 class L2Norm(keras.layers.Layer):
-    """ L2 Normalization layer for S3FD.
+    """L2 Normalization layer for S3FD.
 
     Parameters
     ----------
@@ -85,18 +108,21 @@ class L2Norm(keras.layers.Layer):
     scale: float, optional
         The scaling for initial weights. Default: `1.0`
     """
+
     def __init__(self, n_channels: int, scale: float = 1.0, **kwargs) -> None:
         super().__init__(**kwargs)
         self._n_channels = n_channels
         self._scale = scale
-        self.w = self.add_weight("l2norm",  # pylint:disable=invalid-name
-                                 (self._n_channels, ),
-                                 trainable=True,
-                                 initializer=keras.initializers.Constant(value=self._scale),
-                                 dtype="float32")
+        self.w = self.add_weight(
+            "l2norm",  # pylint:disable=invalid-name
+            (self._n_channels,),
+            trainable=True,
+            initializer=keras.initializers.Constant(value=self._scale),
+            dtype="float32",
+        )
 
     def call(self, inputs: Tensor) -> Tensor:  # pylint:disable=arguments-differ
-        """ Call the L2 Normalization Layer.
+        """Call the L2 Normalization Layer.
 
         Parameters
         ----------
@@ -113,7 +139,7 @@ class L2Norm(keras.layers.Layer):
         return var_x
 
     def get_config(self) -> dict:
-        """ Returns the config of the layer.
+        """Returns the config of the layer.
 
         Returns
         -------
@@ -121,27 +147,29 @@ class L2Norm(keras.layers.Layer):
             The configuration for the layer
         """
         config = super().get_config()
-        config.update({"n_channels": self._n_channels,
-                       "scale": self._scale})
+        config.update({"n_channels": self._n_channels, "scale": self._scale})
         return config
 
 
 class SliceO2K(keras.layers.Layer):
-    """ Custom Keras Slice layer generated by onnx2keras. """
-    def __init__(self,
-                 starts: List[int],
-                 ends: List[int],
-                 axes: Optional[List[int]] = None,
-                 steps: Optional[List[int]] = None,
-                 **kwargs) -> None:
+    """Custom Keras Slice layer generated by onnx2keras."""
+
+    def __init__(
+        self,
+        starts: list[int],
+        ends: list[int],
+        axes: list[int] | None = None,
+        steps: list[int] | None = None,
+        **kwargs,
+    ) -> None:
         self._starts = starts
         self._ends = ends
         self._axes = axes
         self._steps = steps
         super().__init__(**kwargs)
 
-    def _get_slices(self, dimensions: int) -> List[Tuple[int, ...]]:
-        """ Obtain slices for the given number of dimensions.
+    def _get_slices(self, dimensions: int) -> list[tuple[int, ...]]:
+        """Obtain slices for the given number of dimensions.
 
         Parameters
         ----------
@@ -158,7 +186,7 @@ class SliceO2K(keras.layers.Layer):
         assert len(axes) == len(steps) == len(self._starts) == len(self._ends)
         return list(zip(axes, self._starts, self._ends, steps))
 
-    def compute_output_shape(self, input_shape: Tuple[int, ...]) -> Tuple[int, ...]:
+    def compute_output_shape(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
         """Computes the output shape of the layer.
 
         Assumes that the layer will be built to match that input shape provided.
@@ -181,7 +209,9 @@ class SliceO2K(keras.layers.Layer):
                 raise AttributeError("Can not slice batch axis.")
             if size is None:
                 if start < 0 or end < 0:
-                    raise AttributeError("Negative slices not supported on symbolic axes")
+                    raise AttributeError(
+                        "Negative slices not supported on symbolic axes"
+                    )
                 logger.warning("Slicing symbolic axis might lead to problems.")
                 in_shape[a_x] = (end - start) // steps
                 continue
@@ -206,14 +236,16 @@ class SliceO2K(keras.layers.Layer):
         A tensor or list/tuple of tensors.
             The layer output
         """
-        ax_map = dict((x[0], slice(*x[1:])) for x in self._get_slices(K.ndim(inputs)))
+        ax_map = {x[0]: slice(*x[1:]) for x in self._get_slices(K.ndim(inputs))}
         shape = K.int_shape(inputs)
-        slices = [(ax_map[a] if a in ax_map else slice(None)) for a in range(len(shape))]
+        slices = [
+            (ax_map[a] if a in ax_map else slice(None)) for a in range(len(shape))
+        ]
         retval = inputs[tuple(slices)]
         return retval
 
     def get_config(self) -> dict:
-        """ Returns the config of the layer.
+        """Returns the config of the layer.
 
         Returns
         -------
@@ -221,37 +253,53 @@ class SliceO2K(keras.layers.Layer):
             The configuration for the layer
         """
         config = super().get_config()
-        config.update({"starts": self._starts,
-                       "ends": self._ends,
-                       "axes": self._axes,
-                       "steps": self._steps})
+        config.update(
+            {
+                "starts": self._starts,
+                "ends": self._ends,
+                "axes": self._axes,
+                "steps": self._steps,
+            }
+        )
         return config
 
 
 class S3fd(KSession):
-    """ Keras Network """
-    def __init__(self,
-                 model_path: str,
-                 model_kwargs: dict,
-                 allow_growth: bool,
-                 exclude_gpus: Optional[List[int]],
-                 confidence: float) -> None:
-        logger.debug("Initializing: %s: (model_path: '%s', model_kwargs: %s, allow_growth: %s, "
-                     "exclude_gpus: %s, confidence: %s)", self.__class__.__name__, model_path,
-                     model_kwargs, allow_growth, exclude_gpus, confidence)
-        super().__init__("S3FD",
-                         model_path,
-                         model_kwargs=model_kwargs,
-                         allow_growth=allow_growth,
-                         exclude_gpus=exclude_gpus)
+    """Keras Network"""
+
+    def __init__(
+        self,
+        model_path: str,
+        model_kwargs: dict,
+        allow_growth: bool,
+        exclude_gpus: list[int] | None,
+        confidence: float,
+    ) -> None:
+        logger.debug(
+            "Initializing: %s: (model_path: '%s', model_kwargs: %s, allow_growth: %s, "
+            "exclude_gpus: %s, confidence: %s)",
+            self.__class__.__name__,
+            model_path,
+            model_kwargs,
+            allow_growth,
+            exclude_gpus,
+            confidence,
+        )
+        super().__init__(
+            "S3FD",
+            model_path,
+            model_kwargs=model_kwargs,
+            allow_growth=allow_growth,
+            exclude_gpus=exclude_gpus,
+        )
         self.define_model(self.model_definition)
         self.load_model_weights()
         self.confidence = confidence
         self.average_img = np.array([104.0, 117.0, 123.0])
         logger.debug("Initialized: %s", self.__class__.__name__)
 
-    def model_definition(self) -> Tuple[List[Tensor], List[Tensor]]:
-        """ Keras S3FD Model Definition, adapted from FAN pytorch implementation. """
+    def model_definition(self) -> tuple[list[Tensor], list[Tensor]]:
+        """Keras S3FD Model Definition, adapted from FAN pytorch implementation."""
         input_ = Input(shape=(640, 640, 3))
         var_x = self.conv_block(input_, 64, 1, 2)
         var_x = MaxPooling2D(pool_size=2, strides=2)(var_x)
@@ -272,8 +320,12 @@ class S3fd(KSession):
         var_x = MaxPooling2D(pool_size=2, strides=2)(var_x)
 
         var_x = ZeroPadding2D(3)(var_x)
-        var_x = Conv2D(1024, kernel_size=3, strides=1, activation="relu", name="fc6")(var_x)
-        var_x = Conv2D(1024, kernel_size=1, strides=1, activation="relu", name="fc7")(var_x)
+        var_x = Conv2D(1024, kernel_size=3, strides=1, activation="relu", name="fc6")(
+            var_x
+        )
+        var_x = Conv2D(1024, kernel_size=1, strides=1, activation="relu", name="fc7")(
+            var_x
+        )
         ffc7 = var_x
 
         f6_2 = self.conv_up(var_x, 256, 6)
@@ -308,19 +360,36 @@ class S3fd(KSession):
         reg6 = Conv2D(4, kernel_size=3, strides=1, name="conv7_2_mbox_loc")(f7_2)
 
         # max-out background label
-        chunks = [SliceO2K(starts=[0], ends=[1], axes=[3], steps=None)(cls1),
-                  SliceO2K(starts=[1], ends=[2], axes=[3], steps=None)(cls1),
-                  SliceO2K(starts=[2], ends=[3], axes=[3], steps=None)(cls1),
-                  SliceO2K(starts=[3], ends=[4], axes=[3], steps=None)(cls1)]
+        chunks = [
+            SliceO2K(starts=[0], ends=[1], axes=[3], steps=None)(cls1),
+            SliceO2K(starts=[1], ends=[2], axes=[3], steps=None)(cls1),
+            SliceO2K(starts=[2], ends=[3], axes=[3], steps=None)(cls1),
+            SliceO2K(starts=[3], ends=[4], axes=[3], steps=None)(cls1),
+        ]
 
         bmax = Maximum()([chunks[0], chunks[1], chunks[2]])
         cls1 = Concatenate()([bmax, chunks[3]])
 
-        return [input_], [cls1, reg1, cls2, reg2, cls3, reg3, cls4, reg4, cls5, reg5, cls6, reg6]
+        return [input_], [
+            cls1,
+            reg1,
+            cls2,
+            reg2,
+            cls3,
+            reg3,
+            cls4,
+            reg4,
+            cls5,
+            reg5,
+            cls6,
+            reg6,
+        ]
 
     @classmethod
-    def conv_block(cls, inputs: Tensor, filters: int, idx: int, recursions: int) -> Tensor:
-        """ First round convolutions with zero padding added.
+    def conv_block(
+        cls, inputs: Tensor, filters: int, idx: int, recursions: int
+    ) -> Tensor:
+        """First round convolutions with zero padding added.
 
         Parameters
         ----------
@@ -343,16 +412,14 @@ class S3fd(KSession):
         for i in range(1, recursions + 1):
             rec_name = f"{name}_{i}"
             var_x = ZeroPadding2D(1, name=f"{rec_name}.zeropad")(var_x)
-            var_x = Conv2D(filters,
-                           kernel_size=3,
-                           strides=1,
-                           activation="relu",
-                           name=rec_name)(var_x)
+            var_x = Conv2D(
+                filters, kernel_size=3, strides=1, activation="relu", name=rec_name
+            )(var_x)
         return var_x
 
     @classmethod
     def conv_up(cls, inputs: Tensor, filters: int, idx: int) -> Tensor:
-        """ Convolution up filter blocks with zero padding added.
+        """Convolution up filter blocks with zero padding added.
 
         Parameters
         ----------
@@ -375,15 +442,17 @@ class S3fd(KSession):
             size = 1 if i == 1 else 3
             if i == 2:
                 var_x = ZeroPadding2D(1, name=f"{rec_name}.zeropad")(var_x)
-            var_x = Conv2D(filters * i,
-                           kernel_size=size,
-                           strides=i,
-                           activation="relu",
-                           name=rec_name)(var_x)
+            var_x = Conv2D(
+                filters * i,
+                kernel_size=size,
+                strides=i,
+                activation="relu",
+                name=rec_name,
+            )(var_x)
         return var_x
 
     def prepare_batch(self, batch: np.ndarray) -> np.ndarray:
-        """ Prepare a batch for prediction.
+        """Prepare a batch for prediction.
 
         Normalizes the feed images.
 
@@ -400,8 +469,10 @@ class S3fd(KSession):
         batch = batch - self.average_img
         return batch
 
-    def finalize_predictions(self, bounding_boxes_scales: List[np.ndarray]) -> np.ndarray:
-        """ Process the output from the model to obtain faces
+    def finalize_predictions(
+        self, bounding_boxes_scales: list[np.ndarray]
+    ) -> np.ndarray:
+        """Process the output from the model to obtain faces
 
         Parameters
         ----------
@@ -411,29 +482,33 @@ class S3fd(KSession):
         ret = []
         batch_size = range(bounding_boxes_scales[0].shape[0])
         for img in batch_size:
-            bboxlist = [scale[img:img+1] for scale in bounding_boxes_scales]
+            bboxlist = [scale[img : img + 1] for scale in bounding_boxes_scales]
             boxes = self._post_process(bboxlist)
             finallist = self._nms(boxes, 0.5)
             ret.append(finallist)
         return np.array(ret, dtype="object")
 
-    def _post_process(self, bboxlist: List[np.ndarray]) -> np.ndarray:
-        """ Perform post processing on output
-            TODO: do this on the batch.
+    def _post_process(self, bboxlist: list[np.ndarray]) -> np.ndarray:
+        """Perform post processing on output
+        TODO: do this on the batch.
         """
         retval = []
         for i in range(len(bboxlist) // 2):
             bboxlist[i * 2] = self.softmax(bboxlist[i * 2], axis=3)
         for i in range(len(bboxlist) // 2):
             ocls, oreg = bboxlist[i * 2], bboxlist[i * 2 + 1]
-            stride = 2 ** (i + 2)    # 4,8,16,32,64,128
+            stride = 2 ** (i + 2)  # 4,8,16,32,64,128
             poss = zip(*np.where(ocls[:, :, :, 1] > 0.05))
             for _, hindex, windex in poss:
                 axc, ayc = stride / 2 + windex * stride, stride / 2 + hindex * stride
                 score = ocls[0, hindex, windex, 1]
                 if score >= self.confidence:
-                    loc = np.ascontiguousarray(oreg[0, hindex, windex, :]).reshape((1, 4))
-                    priors = np.array([[axc / 1.0, ayc / 1.0, stride * 4 / 1.0, stride * 4 / 1.0]])
+                    loc = np.ascontiguousarray(oreg[0, hindex, windex, :]).reshape(
+                        (1, 4)
+                    )
+                    priors = np.array(
+                        [[axc / 1.0, ayc / 1.0, stride * 4 / 1.0, stride * 4 / 1.0]]
+                    )
                     box = self.decode(loc, priors)
                     x_1, y_1, x_2, y_2 = box[0] * 1.0
                     retval.append([x_1, y_1, x_2, y_2, score])
@@ -463,15 +538,20 @@ class S3fd(KSession):
             decoded bounding box predictions
         """
         variances = [0.1, 0.2]
-        boxes = np.concatenate((priors[:, :2] + location[:, :2] * variances[0] * priors[:, 2:],
-                                priors[:, 2:] * np.exp(location[:, 2:] * variances[1])), axis=1)
+        boxes = np.concatenate(
+            (
+                priors[:, :2] + location[:, :2] * variances[0] * priors[:, 2:],
+                priors[:, 2:] * np.exp(location[:, 2:] * variances[1]),
+            ),
+            axis=1,
+        )
         boxes[:, :2] -= boxes[:, 2:] / 2
         boxes[:, 2:] += boxes[:, :2]
         return boxes
 
     @staticmethod
     def _nms(boxes: np.ndarray, threshold: float) -> np.ndarray:
-        """ Perform Non-Maximum Suppression """
+        """Perform Non-Maximum Suppression"""
         retained_box_indices = []
 
         areas = (boxes[:, 2] - boxes[:, 0] + 1) * (boxes[:, 3] - boxes[:, 1] + 1)
@@ -483,13 +563,16 @@ class S3fd(KSession):
             min_of_xy = np.minimum(boxes[best_rest[0], 2:4], boxes[best_rest[1], 2:4])
             width_height = np.maximum(0, min_of_xy - max_of_xy + 1)
             intersection_areas = width_height[:, 0] * width_height[:, 1]
-            iou = intersection_areas / (areas[best_rest[0]] +
-                                        areas[best_rest[1]] - intersection_areas)
+            iou = intersection_areas / (
+                areas[best_rest[0]] + areas[best_rest[1]] - intersection_areas
+            )
 
             overlapping_boxes = (iou > threshold).nonzero()[0]
             if len(overlapping_boxes) != 0:
                 overlap_set = ranked_indices[overlapping_boxes + 1]
-                vote = np.average(boxes[overlap_set, :4], axis=0, weights=boxes[overlap_set, 4])
+                vote = np.average(
+                    boxes[overlap_set, :4], axis=0, weights=boxes[overlap_set, 4]
+                )
                 boxes[best_rest[0], :4] = vote
             retained_box_indices.append(best_rest[0])
 

@@ -1,21 +1,33 @@
 #!/usr/bin/env python3
 """ Install packages for faceswap.py """
 # pylint: disable=too-many-lines
+from __future__ import annotations
 
-import logging
 import ctypes
 import json
 import locale
-import platform
+import logging
 import operator
 import os
+import platform
 import re
 import sys
 from shutil import which
-from subprocess import list2cmdline, PIPE, Popen, run, STDOUT
-from typing import Any, Dict, List, Optional, Set, Tuple, Type
+from subprocess import list2cmdline
+from subprocess import PIPE
+from subprocess import Popen
+from subprocess import run
+from subprocess import STDOUT
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import Type
 
-from pkg_resources import parse_requirements, Requirement
+from pkg_resources import parse_requirements
+from pkg_resources import Requirement
 
 from lib.logger import log_setup
 
@@ -25,23 +37,30 @@ _INSTALL_FAILED = False
 # Tensorflow builds available from pypi
 _TENSORFLOW_REQUIREMENTS = {">=2.7.0,<2.10.0": ["11.2", "8.1"]}
 # Packages that are explicitly required for setup.py
-_INSTALLER_REQUIREMENTS = [("pexpect>=4.8.0", "!Windows"), ("pywinpty==2.0.2", "Windows")]
+_INSTALLER_REQUIREMENTS = [
+    ("pexpect>=4.8.0", "!Windows"),
+    ("pywinpty==2.0.2", "Windows"),
+]
 
 # Mapping of Python packages to their conda names if different from pip or in non-default channel
-_CONDA_MAPPING: Dict[str, Tuple[str, str]] = {
+_CONDA_MAPPING: dict[str, tuple[str, str]] = {
     # "opencv-python": ("opencv", "conda-forge"),  # Periodic issues with conda-forge opencv
     "fastcluster": ("fastcluster", "conda-forge"),
     "imageio-ffmpeg": ("imageio-ffmpeg", "conda-forge"),
-    "scikit-learn": ("scikit-learn", "conda-forge"),  # Exists in Default but is dependency hell
+    "scikit-learn": (
+        "scikit-learn",
+        "conda-forge",
+    ),  # Exists in Default but is dependency hell
     "tensorflow-deps": ("tensorflow-deps", "apple"),
-    "libblas": ("libblas", "conda-forge")}
+    "libblas": ("libblas", "conda-forge"),
+}
 
 # Packages that should be installed first to prevent version conflicts
 _PRIORITY = ["numpy"]
 
 
-class Environment():
-    """ The current install environment
+class Environment:
+    """The current install environment
 
     Parameters
     ----------
@@ -49,8 +68,9 @@ class Environment():
         ``True`` if the script is being called by Faceswap's internal updater. ``False`` if full
         setup is running. Default: ``False``
     """
+
     def __init__(self, updater: bool = False) -> None:
-        self.conda_required_packages: List[Tuple[str, ...]] = [("tk", )]
+        self.conda_required_packages: list[tuple[str, ...]] = [("tk",)]
         self.updater = updater
         # Flag that setup is being run by installer so steps can be skipped
         self.is_installer: bool = False
@@ -58,9 +78,9 @@ class Environment():
         self.enable_apple_silicon: bool = False
         self.enable_docker: bool = False
         self.enable_cuda: bool = False
-        self.required_packages: List[Tuple[str, List[Tuple[str, str]]]] = []
-        self.missing_packages: List[Tuple[str, List[Tuple[str, str]]]] = []
-        self.conda_missing_packages: List[Tuple[str, ...]] = []
+        self.required_packages: list[tuple[str, list[tuple[str, str]]]] = []
+        self.missing_packages: list[tuple[str, list[tuple[str, str]]]] = []
+        self.conda_missing_packages: list[tuple[str, ...]] = []
         self.cuda_cudnn = ["", ""]
 
         self._process_arguments()
@@ -77,28 +97,29 @@ class Environment():
 
     @property
     def encoding(self) -> str:
-        """ Get system encoding """
+        """Get system encoding"""
         return locale.getpreferredencoding()
 
     @property
-    def os_version(self) -> Tuple[str, str]:
-        """ Get OS Version """
+    def os_version(self) -> tuple[str, str]:
+        """Get OS Version"""
         return platform.system(), platform.release()
 
     @property
-    def py_version(self) -> Tuple[str, str]:
-        """ Get Python Version """
+    def py_version(self) -> tuple[str, str]:
+        """Get Python Version"""
         return platform.python_version(), platform.architecture()[0]
 
     @property
     def is_conda(self) -> bool:
-        """ Check whether using Conda """
-        return ("conda" in sys.version.lower() or
-                os.path.exists(os.path.join(sys.prefix, 'conda-meta')))
+        """Check whether using Conda"""
+        return "conda" in sys.version.lower() or os.path.exists(
+            os.path.join(sys.prefix, "conda-meta")
+        )
 
     @property
     def is_admin(self) -> bool:
-        """ Check whether user is admin """
+        """Check whether user is admin"""
         try:
             retval = os.getuid() == 0  # type: ignore
         except AttributeError:
@@ -107,30 +128,32 @@ class Environment():
 
     @property
     def cuda_version(self) -> str:
-        """ str: The detected globally installed Cuda Version """
+        """str: The detected globally installed Cuda Version"""
         return self.cuda_cudnn[0]
 
     @property
     def cudnn_version(self) -> str:
-        """ str: The detected globally installed cuDNN Version """
+        """str: The detected globally installed cuDNN Version"""
         return self.cuda_cudnn[1]
 
     @property
     def is_virtualenv(self) -> bool:
-        """ Check whether this is a virtual environment """
+        """Check whether this is a virtual environment"""
         if not self.is_conda:
-            retval = (hasattr(sys, "real_prefix") or
-                      (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix))
+            retval = hasattr(sys, "real_prefix") or (
+                hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+            )
         else:
             prefix = os.path.dirname(sys.prefix)
-            retval = (os.path.basename(prefix) == "envs")
+            retval = os.path.basename(prefix) == "envs"
         return retval
 
     def _process_arguments(self) -> None:
-        """ Process any cli arguments and dummy in cli arguments if calling from updater. """
+        """Process any cli arguments and dummy in cli arguments if calling from updater."""
         args = [arg for arg in sys.argv]  # pylint:disable=unnecessary-comprehension
         if self.updater:
             from lib.utils import get_backend  # pylint:disable=import-outside-toplevel
+
             args.append(f"--{get_backend()}")
 
         logger.debug(args)
@@ -145,7 +168,7 @@ class Environment():
                 self.enable_apple_silicon = True
 
     def get_required_packages(self) -> None:
-        """ Load requirements list """
+        """Load requirements list"""
         if self.enable_amd:
             suffix = "amd.txt"
         elif self.enable_cuda:
@@ -167,16 +190,20 @@ class Environment():
 
         # Add required installer packages
         for pkg, plat in _INSTALLER_REQUIREMENTS:
-            if self.os_version[0] == plat or (plat[0] == "!" and self.os_version[0] != plat[1:]):
+            if self.os_version[0] == plat or (
+                plat[0] == "!" and self.os_version[0] != plat[1:]
+            ):
                 requirements.insert(0, pkg)
 
-        self.required_packages = [(pkg.unsafe_name, pkg.specs)
-                                  for pkg in parse_requirements(requirements)
-                                  if pkg.marker is None or pkg.marker.evaluate()]
+        self.required_packages = [
+            (pkg.unsafe_name, pkg.specs)
+            for pkg in parse_requirements(requirements)
+            if pkg.marker is None or pkg.marker.evaluate()
+        ]
         logger.debug(self.required_packages)
 
     def _check_permission(self) -> None:
-        """ Check for Admin permissions """
+        """Check for Admin permissions"""
         if self.updater:
             return
         if self.is_admin:
@@ -185,40 +212,52 @@ class Environment():
             logger.info("Running without root/admin privileges")
 
     def _check_system(self) -> None:
-        """ Check the system """
+        """Check the system"""
         if not self.updater:
-            logger.info("The tool provides tips for installation and installs required python "
-                        "packages")
+            logger.info(
+                "The tool provides tips for installation and installs required python "
+                "packages"
+            )
         logger.info("Setup in %s %s", self.os_version[0], self.os_version[1])
-        if not self.updater and not self.os_version[0] in ["Windows", "Linux", "Darwin"]:
+        if not self.updater and not self.os_version[0] in [
+            "Windows",
+            "Linux",
+            "Darwin",
+        ]:
             logger.error("Your system %s is not supported!", self.os_version[0])
             sys.exit(1)
         if self.os_version[0].lower() == "darwin" and platform.machine() == "arm64":
             self.enable_apple_silicon = True
 
             if not self.updater and not self.is_conda:
-                logger.error("Setting up Faceswap for Apple Silicon outside of a Conda "
-                             "environment is unsupported")
+                logger.error(
+                    "Setting up Faceswap for Apple Silicon outside of a Conda "
+                    "environment is unsupported"
+                )
                 sys.exit(1)
 
     def _check_python(self) -> None:
-        """ Check python and virtual environment status """
+        """Check python and virtual environment status"""
         logger.info("Installed Python: %s %s", self.py_version[0], self.py_version[1])
 
         if self.updater:
             return
 
         if not ((3, 7) <= sys.version_info < (3, 10) and self.py_version[1] == "64bit"):
-            logger.error("Please run this script with Python version 3.7 to 3.9 64bit and try "
-                         "again.")
+            logger.error(
+                "Please run this script with Python version 3.7 to 3.9 64bit and try "
+                "again."
+            )
             sys.exit(1)
         if self.enable_amd and sys.version_info >= (3, 9):
-            logger.error("The AMD version of Faceswap cannot be installed on versions of Python "
-                         "higher than 3.8")
+            logger.error(
+                "The AMD version of Faceswap cannot be installed on versions of Python "
+                "higher than 3.8"
+            )
             sys.exit(1)
 
     def _output_runtime_info(self) -> None:
-        """ Output run time info """
+        """Output run time info"""
         if self.is_conda:
             logger.info("Running in Conda")
         if self.is_virtualenv:
@@ -226,7 +265,7 @@ class Environment():
         logger.info("Encoding: %s", self.encoding)
 
     def _check_pip(self) -> None:
-        """ Check installed pip version """
+        """Check installed pip version"""
         if self.updater:
             return
         try:
@@ -236,7 +275,7 @@ class Environment():
             sys.exit(1)
 
     def _upgrade_pip(self) -> None:
-        """ Upgrade pip to latest version """
+        """Upgrade pip to latest version"""
         if not self.is_conda:
             # Don't do this with Conda, as we must use Conda version of pip
             logger.info("Upgrading pip...")
@@ -247,13 +286,16 @@ class Environment():
             pipexe.append("pip")
             run(pipexe, check=True)
         import pip  # pylint:disable=import-outside-toplevel
+
         pip_version = pip.__version__
         logger.info("Installed pip: %s", pip_version)
 
-    def get_installed_packages(self) -> Dict[str, str]:
-        """ Get currently installed packages """
+    def get_installed_packages(self) -> dict[str, str]:
+        """Get currently installed packages"""
         installed_packages = {}
-        with Popen(f"\"{sys.executable}\" -m pip freeze --local", shell=True, stdout=PIPE) as chk:
+        with Popen(
+            f'"{sys.executable}" -m pip freeze --local', shell=True, stdout=PIPE
+        ) as chk:
             installed = chk.communicate()[0].decode(self.encoding).splitlines()
 
         for pkg in installed:
@@ -264,13 +306,16 @@ class Environment():
         logger.debug(installed_packages)
         return installed_packages
 
-    def get_installed_conda_packages(self) -> Dict[str, str]:
-        """ Get currently installed conda packages """
+    def get_installed_conda_packages(self) -> dict[str, str]:
+        """Get currently installed conda packages"""
         if not self.is_conda:
             return {}
         chk = os.popen("conda list").read()
-        installed = [re.sub(" +", " ", line.strip())
-                     for line in chk.splitlines() if not line.startswith("#")]
+        installed = [
+            re.sub(" +", " ", line.strip())
+            for line in chk.splitlines()
+            if not line.startswith("#")
+        ]
         retval = {}
         for pkg in installed:
             item = pkg.split(" ")
@@ -279,7 +324,7 @@ class Environment():
         return retval
 
     def update_tf_dep(self) -> None:
-        """ Update Tensorflow Dependency """
+        """Update Tensorflow Dependency"""
         if self.is_conda or not self.enable_cuda:
             # CPU/AMD doesn't need Cuda and Conda handles Cuda and cuDNN so nothing to do here
             return
@@ -289,20 +334,25 @@ class Environment():
         for key, val in _TENSORFLOW_REQUIREMENTS.items():
             cuda_req = val[0]
             cudnn_req = val[1].split(".")
-            if cuda_req == self.cuda_version and (cudnn_req[0] == cudnn_inst[0] and
-                                                  cudnn_req[1] <= cudnn_inst[1]):
+            if cuda_req == self.cuda_version and (
+                cudnn_req[0] == cudnn_inst[0] and cudnn_req[1] <= cudnn_inst[1]
+            ):
                 tf_ver = key
                 break
         if tf_ver:
             # Remove the version of tensorflow in requirements file and add the correct version
             # that corresponds to the installed Cuda/cuDNN versions
-            self.required_packages = [pkg for pkg in self.required_packages
-                                      if not pkg[0].startswith("tensorflow-gpu")]
+            self.required_packages = [
+                pkg
+                for pkg in self.required_packages
+                if not pkg[0].startswith("tensorflow-gpu")
+            ]
             tf_ver = f"tensorflow-gpu{tf_ver}"
 
             tf_ver = f"tensorflow-gpu{tf_ver}"
-            self.required_packages.append(("tensorflow-gpu",
-                                           next(parse_requirements(tf_ver)).specs))
+            self.required_packages.append(
+                ("tensorflow-gpu", next(parse_requirements(tf_ver)).specs)
+            )
             return
 
         logger.warning(
@@ -316,10 +366,14 @@ class Environment():
             "Building Tensorflow: https://www.tensorflow.org/install/install_sources\r\n"
             "Tensorflow supported versions: "
             "https://www.tensorflow.org/install/source#tested_build_configurations",
-            self.cuda_version, self.cudnn_version)
+            self.cuda_version,
+            self.cudnn_version,
+        )
 
-        custom_tf = input("Location of custom tensorflow-gpu wheel (leave "
-                          "blank to manually install): ")
+        custom_tf = input(
+            "Location of custom tensorflow-gpu wheel (leave "
+            "blank to manually install): "
+        )
         if not custom_tf:
             return
 
@@ -335,7 +389,7 @@ class Environment():
             self.required_packages.append((custom_tf, [(custom_tf, "")]))
 
     def set_config(self) -> None:
-        """ Set the backend in the faceswap config file """
+        """Set the backend in the faceswap config file"""
         if self.enable_amd:
             backend = "amd"
         elif self.enable_cuda:
@@ -352,7 +406,7 @@ class Environment():
         logger.info("Faceswap config written to: %s", config_file)
 
     def _set_env_vars(self) -> None:
-        """ There are some foibles under Conda which need to be worked around in different
+        """There are some foibles under Conda which need to be worked around in different
         situations.
 
         Linux:
@@ -374,8 +428,11 @@ class Environment():
             return
 
         linux_update = self.os_version[0].lower() == "linux" and self.enable_cuda
-        windows_update = (self.os_version[0].lower() == "windows" and
-                          self.enable_amd and (3, 8) <= sys.version_info < (3, 9))
+        windows_update = (
+            self.os_version[0].lower() == "windows"
+            and self.enable_amd
+            and (3, 8) <= sys.version_info < (3, 9)
+        )
 
         if not linux_update and not windows_update:
             return
@@ -388,7 +445,9 @@ class Environment():
 
         ext = ".bat" if windows_update else ".sh"
         activate_script = os.path.join(conda_prefix, activate_folder, f"env_vars{ext}")
-        deactivate_script = os.path.join(conda_prefix, deactivate_folder, f"env_vars{ext}")
+        deactivate_script = os.path.join(
+            conda_prefix, deactivate_folder, f"env_vars{ext}"
+        )
 
         if os.path.isfile(activate_script):
             # Only create file if it does not already exist. There may be instances where people
@@ -398,19 +457,21 @@ class Environment():
 
         if linux_update:
             conda_libs = os.path.join(conda_prefix, "lib")
-            activate = ["#!/bin/sh\n\n",
-                        "export OLD_LD_LIBRARY_PATH=${LD_LIBRARY_PATH}\n",
-                        f"export LD_LIBRARY_PATH='{conda_libs}':${{LD_LIBRARY_PATH}}\n"]
-            deactivate = ["#!/bin/sh\n\n",
-                          "export LD_LIBRARY_PATH=${OLD_LD_LIBRARY_PATH}\n",
-                          "unset OLD_LD_LIBRARY_PATH\n"]
+            activate = [
+                "#!/bin/sh\n\n",
+                "export OLD_LD_LIBRARY_PATH=${LD_LIBRARY_PATH}\n",
+                f"export LD_LIBRARY_PATH='{conda_libs}':${{LD_LIBRARY_PATH}}\n",
+            ]
+            deactivate = [
+                "#!/bin/sh\n\n",
+                "export LD_LIBRARY_PATH=${OLD_LD_LIBRARY_PATH}\n",
+                "unset OLD_LD_LIBRARY_PATH\n",
+            ]
             logger.info("Cuda search path set to '%s'", conda_libs)
 
         if windows_update:
-            activate = ["@ECHO OFF\n",
-                        "set CONDA_DLL_SEARCH_MODIFICATION_ENABLE=1\n"]
-            deactivate = ["@ECHO OFF\n",
-                          "set CONDA_DLL_SEARCH_MODIFICATION_ENABLE=\n"]
+            activate = ["@ECHO OFF\n", "set CONDA_DLL_SEARCH_MODIFICATION_ENABLE=1\n"]
+            deactivate = ["@ECHO OFF\n", "set CONDA_DLL_SEARCH_MODIFICATION_ENABLE=\n"]
             logger.verbose("CONDA_DLL_SEARCH_MODIFICATION_ENABLE set to 1")  # type: ignore
 
         with open(activate_script, "w", encoding="utf8") as afile:
@@ -419,21 +480,22 @@ class Environment():
             afile.writelines(deactivate)
 
 
-class Checks():  # pylint:disable=too-few-public-methods
-    """ Pre-installation checks
+class Checks:  # pylint:disable=too-few-public-methods
+    """Pre-installation checks
 
     Parameters
     ----------
     environment: :class:`Environment`
         Environment class holding information about the running system
     """
+
     def __init__(self, environment: Environment) -> None:
-        self._env:  Environment = environment
+        self._env: Environment = environment
         self._tips: Tips = Tips()
-    # Checks not required for installer
+        # Checks not required for installer
         if self._env.is_installer:
             return
-    # Checks not required for Apple Silicon
+        # Checks not required for Apple Silicon
         if self._env.enable_apple_silicon:
             return
         self._user_input()
@@ -443,13 +505,14 @@ class Checks():  # pylint:disable=too-few-public-methods
             self._tips.pip()
 
     def _user_input(self) -> None:
-        """ Get user input for AMD/Cuda/Docker """
+        """Get user input for AMD/Cuda/Docker"""
         self._amd_ask_enable()
         if not self._env.enable_amd:
             self._docker_ask_enable()
             self._cuda_ask_enable()
-        if self._env.os_version[0] != "Linux" and (self._env.enable_docker
-                                                   and self._env.enable_cuda):
+        if self._env.os_version[0] != "Linux" and (
+            self._env.enable_docker and self._env.enable_cuda
+        ):
             self._docker_confirm()
         if self._env.enable_docker:
             self._docker_tips()
@@ -457,9 +520,11 @@ class Checks():  # pylint:disable=too-few-public-methods
             sys.exit(0)
 
     def _amd_ask_enable(self) -> None:
-        """ Enable or disable Plaidml for AMD"""
-        logger.info("AMD Support: AMD GPU support is currently limited.\r\n"
-                    "Nvidia Users MUST answer 'no' to this option.")
+        """Enable or disable Plaidml for AMD"""
+        logger.info(
+            "AMD Support: AMD GPU support is currently limited.\r\n"
+            "Nvidia Users MUST answer 'no' to this option."
+        )
         i = input("Enable AMD Support? [y/N] ")
         if i in ("Y", "y"):
             logger.info("AMD Support Enabled")
@@ -469,7 +534,7 @@ class Checks():  # pylint:disable=too-few-public-methods
             self._env.enable_amd = False
 
     def _docker_ask_enable(self) -> None:
-        """ Enable or disable Docker """
+        """Enable or disable Docker"""
         i = input("Enable  Docker? [y/N] ")
         if i in ("Y", "y"):
             logger.info("Docker Enabled")
@@ -479,23 +544,25 @@ class Checks():  # pylint:disable=too-few-public-methods
             self._env.enable_docker = False
 
     def _docker_confirm(self) -> None:
-        """ Warn if nvidia-docker on non-Linux system """
-        logger.warning("Nvidia-Docker is only supported on Linux.\r\n"
-                       "Only CPU is supported in Docker for your system")
+        """Warn if nvidia-docker on non-Linux system"""
+        logger.warning(
+            "Nvidia-Docker is only supported on Linux.\r\n"
+            "Only CPU is supported in Docker for your system"
+        )
         self._docker_ask_enable()
         if self._env.enable_docker:
             logger.warning("CUDA Disabled")
             self._env.enable_cuda = False
 
     def _docker_tips(self) -> None:
-        """ Provide tips for Docker use """
+        """Provide tips for Docker use"""
         if not self._env.enable_cuda:
             self._tips.docker_no_cuda()
         else:
             self._tips.docker_cuda()
 
     def _cuda_ask_enable(self) -> None:
-        """ Enable or disable CUDA """
+        """Enable or disable CUDA"""
         i = input("Enable  CUDA? [Y/n] ")
         if i in ("", "Y", "y"):
             logger.info("CUDA Enabled")
@@ -505,7 +572,7 @@ class Checks():  # pylint:disable=too-few-public-methods
             self._env.enable_cuda = False
 
     def _check_cuda(self) -> None:
-        """ Check for Cuda and cuDNN Locations. """
+        """Check for Cuda and cuDNN Locations."""
         if not self._env.enable_cuda:
             logger.debug("Skipping Cuda checks as not enabled")
             return
@@ -521,10 +588,12 @@ class Checks():  # pylint:disable=too-few-public-methods
                 self._env.cuda_cudnn[0] = check.cuda_version
                 logger.info("CUDA version: %s", self._env.cuda_version)
             else:
-                logger.error("CUDA not found. Install and try again.\n"
-                             "Recommended version:      CUDA 10.1     cuDNN 7.6\n"
-                             "CUDA: https://developer.nvidia.com/cuda-downloads\n"
-                             "cuDNN: https://developer.nvidia.com/rdp/cudnn-download")
+                logger.error(
+                    "CUDA not found. Install and try again.\n"
+                    "Recommended version:      CUDA 10.1     cuDNN 7.6\n"
+                    "CUDA: https://developer.nvidia.com/cuda-downloads\n"
+                    "cuDNN: https://developer.nvidia.com/rdp/cudnn-download"
+                )
                 _INSTALL_FAILED = True
                 return
 
@@ -532,9 +601,11 @@ class Checks():  # pylint:disable=too-few-public-methods
                 self._env.cuda_cudnn[1] = ".".join(check.cudnn_version.split(".")[:2])
                 logger.info("cuDNN version: %s", self._env.cudnn_version)
             else:
-                logger.error("cuDNN not found. See "
-                             "https://github.com/deepfakes/faceswap/blob/master/INSTALL.md#"
-                             "cudnn for instructions")
+                logger.error(
+                    "cuDNN not found. See "
+                    "https://github.com/deepfakes/faceswap/blob/master/INSTALL.md#"
+                    "cudnn for instructions"
+                )
                 _INSTALL_FAILED = True
             return
 
@@ -544,27 +615,30 @@ class Checks():  # pylint:disable=too-few-public-methods
         self._env.cuda_cudnn[0] = input("Manually specify CUDA version: ")
 
 
-class CudaCheck():  # pylint:disable=too-few-public-methods
-    """ Find the location of system installed Cuda and cuDNN on Windows and Linux. """
+class CudaCheck:  # pylint:disable=too-few-public-methods
+    """Find the location of system installed Cuda and cuDNN on Windows and Linux."""
 
     def __init__(self) -> None:
-        self.cuda_path: Optional[str] = None
-        self.cuda_version: Optional[str] = None
-        self.cudnn_version: Optional[str] = None
+        self.cuda_path: str | None = None
+        self.cuda_version: str | None = None
+        self.cudnn_version: str | None = None
 
         self._os: str = platform.system().lower()
-        self._cuda_keys: List[str] = [key
-                                      for key in os.environ
-                                      if key.lower().startswith("cuda_path_v")]
-        self._cudnn_header_files: List[str] = ["cudnn_version.h", "cudnn.h"]
-        logger.debug("cuda keys: %s, cudnn header files: %s",
-                     self._cuda_keys, self._cudnn_header_files)
+        self._cuda_keys: list[str] = [
+            key for key in os.environ if key.lower().startswith("cuda_path_v")
+        ]
+        self._cudnn_header_files: list[str] = ["cudnn_version.h", "cudnn.h"]
+        logger.debug(
+            "cuda keys: %s, cudnn header files: %s",
+            self._cuda_keys,
+            self._cudnn_header_files,
+        )
         if self._os in ("windows", "linux"):
             self._cuda_check()
             self._cudnn_check()
 
     def _cuda_check(self) -> None:
-        """ Obtain the location and version of Cuda and populate :attr:`cuda_version` and
+        """Obtain the location and version of Cuda and populate :attr:`cuda_version` and
         :attr:`cuda_path`
 
         Initially just calls `nvcc -V` to get the installed version of Cuda currently in use.
@@ -573,14 +647,18 @@ class CudaCheck():  # pylint:disable=too-few-public-methods
         with Popen("nvcc -V", shell=True, stdout=PIPE, stderr=PIPE) as chk:
             stdout, stderr = chk.communicate()
         if not stderr:
-            version = re.search(r".*release (?P<cuda>\d+\.\d+)",
-                                stdout.decode(locale.getpreferredencoding()))
+            version = re.search(
+                r".*release (?P<cuda>\d+\.\d+)",
+                stdout.decode(locale.getpreferredencoding()),
+            )
             if version is not None:
                 self.cuda_version = version.groupdict().get("cuda", None)
             locate = "where" if self._os == "windows" else "which"
             path = os.popen(f"{locate} nvcc").read()
             if path:
-                path = path.split("\n")[0]  # Split multiple entries and take first found
+                path = path.split("\n")[
+                    0
+                ]  # Split multiple entries and take first found
                 while True:  # Get Cuda root folder
                     path, split = os.path.split(path)
                     if split == "bin":
@@ -590,50 +668,59 @@ class CudaCheck():  # pylint:disable=too-few-public-methods
 
         # Failed to load nvcc, manual check
         getattr(self, f"_cuda_check_{self._os}")()
-        logger.debug("Cuda Version: %s, Cuda Path: %s", self.cuda_version, self.cuda_path)
+        logger.debug(
+            "Cuda Version: %s, Cuda Path: %s", self.cuda_version, self.cuda_path
+        )
 
     def _cuda_check_linux(self) -> None:
-        """ For Linux check the dynamic link loader for libcudart. If not found with ldconfig then
-        attempt to find it in LD_LIBRARY_PATH. """
-        chk = os.popen("ldconfig -p | grep -P \"libcudart.so.\\d+.\\d+\" | head -n 1").read()
+        """For Linux check the dynamic link loader for libcudart. If not found with ldconfig then
+        attempt to find it in LD_LIBRARY_PATH."""
+        chk = os.popen(
+            'ldconfig -p | grep -P "libcudart.so.\\d+.\\d+" | head -n 1'
+        ).read()
         if not chk and os.environ.get("LD_LIBRARY_PATH"):
             for path in os.environ["LD_LIBRARY_PATH"].split(":"):
-                chk = os.popen(f"ls {path} | grep -P -o \"libcudart.so.\\d+.\\d+\" | "
-                               "head -n 1").read()
+                chk = os.popen(
+                    f'ls {path} | grep -P -o "libcudart.so.\\d+.\\d+" | ' "head -n 1"
+                ).read()
                 if chk:
                     break
         if not chk:  # Cuda not found
             return
 
         cudavers = chk.strip().replace("libcudart.so.", "")
-        self.cuda_version = cudavers[:cudavers.find(" ")]
-        self.cuda_path = chk[chk.find("=>") + 3:chk.find("targets") - 1]
+        self.cuda_version = cudavers[: cudavers.find(" ")]
+        self.cuda_path = chk[chk.find("=>") + 3 : chk.find("targets") - 1]
 
     def _cuda_check_windows(self) -> None:
-        """ Check Windows CUDA Version and path from Environment Variables"""
+        """Check Windows CUDA Version and path from Environment Variables"""
         if not self._cuda_keys:  # Cuda environment variable not found
             return
-        self.cuda_version = self._cuda_keys[0].lower().replace("cuda_path_v", "").replace("_", ".")
+        self.cuda_version = (
+            self._cuda_keys[0].lower().replace("cuda_path_v", "").replace("_", ".")
+        )
         self.cuda_path = os.environ[self._cuda_keys[0][0]]
 
     def _cudnn_check(self):
-        """ Check Linux or Windows cuDNN Version from cudnn.h and add to :attr:`cudnn_version`. """
+        """Check Linux or Windows cuDNN Version from cudnn.h and add to :attr:`cudnn_version`."""
         cudnn_checkfiles = getattr(self, f"_get_checkfiles_{self._os}")()
-        cudnn_checkfile = next((hdr for hdr in cudnn_checkfiles if os.path.isfile(hdr)), None)
+        cudnn_checkfile = next(
+            (hdr for hdr in cudnn_checkfiles if os.path.isfile(hdr)), None
+        )
         logger.debug("cudnn checkfiles: %s", cudnn_checkfile)
         if not cudnn_checkfile:
             return
         found = 0
-        with open(cudnn_checkfile, "r", encoding="utf8") as ofile:
+        with open(cudnn_checkfile, encoding="utf8") as ofile:
             for line in ofile:
                 if line.lower().startswith("#define cudnn_major"):
-                    major = line[line.rfind(" ") + 1:].strip()
+                    major = line[line.rfind(" ") + 1 :].strip()
                     found += 1
                 elif line.lower().startswith("#define cudnn_minor"):
-                    minor = line[line.rfind(" ") + 1:].strip()
+                    minor = line[line.rfind(" ") + 1 :].strip()
                     found += 1
                 elif line.lower().startswith("#define cudnn_patchlevel"):
-                    patchlevel = line[line.rfind(" ") + 1:].strip()
+                    patchlevel = line[line.rfind(" ") + 1 :].strip()
                     found += 1
                 if found == 3:
                     break
@@ -642,8 +729,8 @@ class CudaCheck():  # pylint:disable=too-few-public-methods
         self.cudnn_version = ".".join([str(major), str(minor), str(patchlevel)])
         logger.debug("cudnn version: %s", self.cudnn_version)
 
-    def _get_checkfiles_linux(self) -> List[str]:
-        """ Return the the files to check for cuDNN locations for Linux by querying
+    def _get_checkfiles_linux(self) -> list[str]:
+        """Return the the files to check for cuDNN locations for Linux by querying
         the dynamic link loader.
 
         Returns
@@ -651,7 +738,7 @@ class CudaCheck():  # pylint:disable=too-few-public-methods
         list
             List of header file locations to scan for cuDNN versions
         """
-        chk = os.popen("ldconfig -p | grep -P \"libcudnn.so.\\d+\" | head -n 1").read()
+        chk = os.popen('ldconfig -p | grep -P "libcudnn.so.\\d+" | head -n 1').read()
         chk = chk.strip().replace("libcudnn.so.", "")
         if not chk:
             return []
@@ -659,13 +746,15 @@ class CudaCheck():  # pylint:disable=too-few-public-methods
         cudnn_vers = chk[0]
         header_files = [f"cudnn_v{cudnn_vers}.h"] + self._cudnn_header_files
 
-        cudnn_path = os.path.realpath(chk[chk.find("=>") + 3:chk.find("libcudnn") - 1])
+        cudnn_path = os.path.realpath(
+            chk[chk.find("=>") + 3 : chk.find("libcudnn") - 1]
+        )
         cudnn_path = cudnn_path.replace("lib", "include")
         cudnn_checkfiles = [os.path.join(cudnn_path, header) for header in header_files]
         return cudnn_checkfiles
 
-    def _get_checkfiles_windows(self) -> List[str]:
-        """ Return the check-file locations for Windows. Just looks inside the include folder of
+    def _get_checkfiles_windows(self) -> list[str]:
+        """Return the check-file locations for Windows. Just looks inside the include folder of
         the discovered :attr:`cuda_path`
 
         Returns
@@ -677,12 +766,14 @@ class CudaCheck():  # pylint:disable=too-few-public-methods
         if not self.cuda_path:
             return []
         scandir = os.path.join(self.cuda_path, "include")
-        cudnn_checkfiles = [os.path.join(scandir, header) for header in self._cudnn_header_files]
+        cudnn_checkfiles = [
+            os.path.join(scandir, header) for header in self._cudnn_header_files
+        ]
         return cudnn_checkfiles
 
 
-class Install():  # pylint:disable=too-few-public-methods
-    """ Handles installation of Faceswap requirements
+class Install:  # pylint:disable=too-few-public-methods
+    """Handles installation of Faceswap requirements
 
     Parameters
     ----------
@@ -691,17 +782,20 @@ class Install():  # pylint:disable=too-few-public-methods
     is_gui: bool, Optional
         ``True`` if the caller is the Faceswap GUI. Used to prevent output of progress bars
         which get scrambled in the GUI
-     """
+    """
+
     def __init__(self, environment: Environment, is_gui: bool = False) -> None:
-        self._operators = {"==": operator.eq,
-                           ">=": operator.ge,
-                           "<=": operator.le,
-                           ">": operator.gt,
-                           "<": operator.lt}
+        self._operators = {
+            "==": operator.eq,
+            ">=": operator.ge,
+            "<=": operator.le,
+            ">": operator.gt,
+            "<": operator.lt,
+        }
         self._env = environment
         self._is_gui = is_gui
         if self._env.os_version[0] == "Windows":
-            self._installer: Type[Installer] = WinPTYInstaller
+            self._installer: type[Installer] = WinPTYInstaller
         else:
             self._installer = PexpectInstaller
 
@@ -710,8 +804,11 @@ class Install():  # pylint:disable=too-few-public-methods
         self._env.get_required_packages()
         self._check_missing_dep()
         self._check_conda_missing_dep()
-        if (self._env.updater and
-                not self._env.missing_packages and not self._env.conda_missing_packages):
+        if (
+            self._env.updater
+            and not self._env.missing_packages
+            and not self._env.conda_missing_packages
+        ):
             logger.info("All Dependencies are up to date")
             return
         logger.info("Installing Required Python Packages. This may take some time...")
@@ -720,25 +817,29 @@ class Install():  # pylint:disable=too-few-public-methods
         if self._env.updater:
             return
         if not _INSTALL_FAILED:
-            logger.info("All python3 dependencies are met.\r\nYou are good to go.\r\n\r\n"
-                        "Enter:  'python faceswap.py -h' to see the options\r\n"
-                        "        'python faceswap.py gui' to launch the GUI")
+            logger.info(
+                "All python3 dependencies are met.\r\nYou are good to go.\r\n\r\n"
+                "Enter:  'python faceswap.py -h' to see the options\r\n"
+                "        'python faceswap.py gui' to launch the GUI"
+            )
         else:
-            logger.error("Some packages failed to install. This may be a temporary error which "
-                         "might be fixed by re-running this script. Otherwise please install "
-                         "these packages manually.")
+            logger.error(
+                "Some packages failed to install. This may be a temporary error which "
+                "might be fixed by re-running this script. Otherwise please install "
+                "these packages manually."
+            )
             sys.exit(1)
 
     @classmethod
     def _ask_continue(cls) -> None:
-        """ Ask Continue with Install """
+        """Ask Continue with Install"""
         inp = input("Please ensure your System Dependencies are met. Continue? [y/N] ")
         if inp in ("", "N", "n"):
             logger.error("Please install system dependencies to continue")
             sys.exit(1)
 
     def _check_missing_dep(self) -> None:
-        """ Check for missing dependencies """
+        """Check for missing dependencies"""
         for key, specs in self._env.required_packages:
 
             if self._env.is_conda:  # Get Conda alias for Key
@@ -751,22 +852,29 @@ class Install():  # pylint:disable=too-few-public-methods
 
             installed_vers = self._env.installed_packages.get(key, "")
 
-            if specs and not all(self._operators[spec[0]](
-                [int(s) for s in installed_vers.split(".")],
-                [int(s) for s in spec[1].split(".")])
-                                 for spec in specs):
+            if specs and not all(
+                self._operators[spec[0]](
+                    [int(s) for s in installed_vers.split(".")],
+                    [int(s) for s in spec[1].split(".")],
+                )
+                for spec in specs
+            ):
                 self._env.missing_packages.append((key, specs))
 
         for priority in reversed(_PRIORITY):
             # Put priority packages at beginning of list
-            package = next((pkg for pkg in self._env.missing_packages if pkg[0] == priority), None)
+            package = next(
+                (pkg for pkg in self._env.missing_packages if pkg[0] == priority), None
+            )
             if package:
                 idx = self._env.missing_packages.index(package)
-                self._env.missing_packages.insert(0, self._env.missing_packages.pop(idx))
+                self._env.missing_packages.insert(
+                    0, self._env.missing_packages.pop(idx)
+                )
         logger.debug(self._env.missing_packages)
 
     def _check_conda_missing_dep(self) -> None:
-        """ Check for conda missing dependencies """
+        """Check for conda missing dependencies"""
         if not self._env.is_conda:
             return
         installed_conda_packages = self._env.get_installed_conda_packages()
@@ -782,8 +890,8 @@ class Install():  # pylint:disable=too-few-public-methods
         logger.debug(self._env.conda_missing_packages)
 
     @classmethod
-    def _format_package(cls, package: str, version: List[Tuple[str, str]]) -> str:
-        """ Format a parsed requirement package and version string to a format that can be used by
+    def _format_package(cls, package: str, version: list[tuple[str, str]]) -> str:
+        """Format a parsed requirement package and version string to a format that can be used by
         the installer.
 
         Parameters
@@ -801,13 +909,15 @@ class Install():  # pylint:disable=too-few-public-methods
         return f"{package}{','.join(''.join(spec) for spec in version)}"
 
     def _install_setup_packages(self) -> None:
-        """ Install any packages that are required for the setup.py installer to work. This
+        """Install any packages that are required for the setup.py installer to work. This
         includes the pexpect package if it is not already installed.
 
         Subprocess is used as we do not currently have pexpect
         """
         pkgs = [pkg[0] for pkg in _INSTALLER_REQUIREMENTS]
-        setup_packages = [(pkg.unsafe_name, pkg.specs) for pkg in parse_requirements(pkgs)]
+        setup_packages = [
+            (pkg.unsafe_name, pkg.specs) for pkg in parse_requirements(pkgs)
+        ]
 
         for pkg in setup_packages:
             if pkg not in self._env.missing_packages:
@@ -817,21 +927,23 @@ class Install():  # pylint:disable=too-few-public-methods
             if self._env.is_conda:
                 cmd = ["conda", "install", "-y"]
                 if any(char in pkg_str for char in (" ", "<", ">", "*", "|")):
-                    pkg_str = f"\"{pkg_str}\""
+                    pkg_str = f'"{pkg_str}"'
             else:
                 cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
                 if self._env.is_admin:
                     cmd.append("--user")
             cmd.append(pkg_str)
 
-            clean_pkg = pkg_str.replace("\"", "")
+            clean_pkg = pkg_str.replace('"', "")
             installer = SubProcInstaller(self._env, clean_pkg, cmd, self._is_gui)
             if installer() != 0:
-                logger.error("Unable to install package: %s. Process aborted", clean_pkg)
+                logger.error(
+                    "Unable to install package: %s. Process aborted", clean_pkg
+                )
                 sys.exit(1)
 
     def _install_missing_dep(self) -> None:
-        """ Install missing dependencies """
+        """Install missing dependencies"""
         # Install conda packages first
         if self._env.conda_missing_packages:
             self._install_conda_packages()
@@ -839,7 +951,7 @@ class Install():  # pylint:disable=too-few-public-methods
             self._install_python_packages()
 
     def _install_python_packages(self) -> None:
-        """ Install required pip packages """
+        """Install required pip packages"""
         conda_only = False
         for pkg, version in self._env.missing_packages:
             if self._env.is_conda:
@@ -859,8 +971,11 @@ class Install():  # pylint:disable=too-few-public-methods
 
                     # Rewrite tensorflow requirement to versions from highest available cuda/cudnn
                     highest_cuda = sorted(_TENSORFLOW_REQUIREMENTS.values())[-1]
-                    compat_tf = next(k for k, v in _TENSORFLOW_REQUIREMENTS.items()
-                                     if v == highest_cuda)
+                    compat_tf = next(
+                        k
+                        for k, v in _TENSORFLOW_REQUIREMENTS.items()
+                        if v == highest_cuda
+                    )
                     pkg = f"tensorflow-gpu{compat_tf}"
                     conda_only = True
 
@@ -869,17 +984,16 @@ class Install():  # pylint:disable=too-few-public-methods
             self._from_pip(pkg)
 
     def _install_conda_packages(self) -> None:
-        """ Install required conda packages """
+        """Install required conda packages"""
         logger.info("Installing Required Conda Packages. This may take some time...")
         for pkg in self._env.conda_missing_packages:
             channel = None if len(pkg) != 2 else pkg[1]
             self._from_conda(pkg[0], channel=channel, conda_only=True)
 
-    def _from_conda(self,
-                    package: str,
-                    channel: Optional[str] = None,
-                    conda_only: bool = False) -> bool:
-        """ Install a conda package
+    def _from_conda(
+        self, package: str, channel: str | None = None, conda_only: bool = False
+    ) -> bool:
+        """Install a conda package
 
         Parameters
         ----------
@@ -911,29 +1025,34 @@ class Install():  # pylint:disable=too-few-public-methods
                 if all(item in req_specs for item in specs):
                     cuda, cudnn = val
                     break
-            condaexe.extend(["-c", "conda-forge", f"cudatoolkit={cuda}", f"cudnn={cudnn}"])
+            condaexe.extend(
+                ["-c", "conda-forge", f"cudatoolkit={cuda}", f"cudnn={cudnn}"]
+            )
             package = "Cuda Toolkit"
             success = False
 
         if package != "Cuda Toolkit":
             if any(char in package for char in (" ", "<", ">", "*", "|")):
-                package = f"\"{package}\""
+                package = f'"{package}"'
             condaexe.append(package)
 
-        clean_pkg = package.replace("\"", "")
+        clean_pkg = package.replace('"', "")
         installer = self._installer(self._env, clean_pkg, condaexe, self._is_gui)
         retcode = installer()
 
         if retcode != 0 and not conda_only:
             logger.info("%s not available in Conda. Installing with pip", package)
         elif retcode != 0:
-            logger.warning("Couldn't install %s with Conda. Please install this package "
-                           "manually", package)
+            logger.warning(
+                "Couldn't install %s with Conda. Please install this package "
+                "manually",
+                package,
+            )
         success = retcode == 0 and success
         return success
 
     def _from_pip(self, package: str) -> None:
-        """ Install a pip package
+        """Install a pip package
 
         Parameters
         ----------
@@ -948,14 +1067,16 @@ class Install():  # pylint:disable=too-few-public-methods
 
         installer = self._installer(self._env, package, pipexe, self._is_gui)
         if installer() != 0:
-            logger.warning("Couldn't install %s with pip. Please install this package manually",
-                           package)
+            logger.warning(
+                "Couldn't install %s with pip. Please install this package manually",
+                package,
+            )
             global _INSTALL_FAILED  # pylint:disable=global-statement
             _INSTALL_FAILED = True
 
 
-class Installer():
-    """ Parent class for package installers.
+class Installer:
+    """Parent class for package installers.
 
     PyWinPty is used for Windows, Pexpect is used for Linux, as these can provide us with realtime
     output.
@@ -974,11 +1095,10 @@ class Installer():
     is_gui: bool
         ``True if the process is being called from the Faceswap GUI
     """
-    def __init__(self,
-                 environment: Environment,
-                 package: str,
-                 command: List[str],
-                 is_gui: bool) -> None:
+
+    def __init__(
+        self, environment: Environment, package: str, command: list[str], is_gui: bool
+    ) -> None:
         logger.info("Installing %s", package)
         logger.debug("argv: %s", command)
         self._env = environment
@@ -986,10 +1106,10 @@ class Installer():
         self._command = command
         self._is_gui = is_gui
         self._last_line_cr = False
-        self._seen_lines: Set[str] = set()
+        self._seen_lines: set[str] = set()
 
     def __call__(self) -> int:
-        """ Call the subclassed call function
+        """Call the subclassed call function
 
         Returns
         -------
@@ -999,15 +1119,20 @@ class Installer():
         try:
             returncode = self.call()
         except Exception as err:  # pylint:disable=broad-except
-            logger.debug("Failed to install with %s. Falling back to subprocess. Error: %s",
-                         self.__class__.__name__, str(err))
-            returncode = SubProcInstaller(self._env, self._package, self._command, self._is_gui)()
+            logger.debug(
+                "Failed to install with %s. Falling back to subprocess. Error: %s",
+                self.__class__.__name__,
+                str(err),
+            )
+            returncode = SubProcInstaller(
+                self._env, self._package, self._command, self._is_gui
+            )()
 
         logger.debug("Package: %s, returncode: %s", self._package, returncode)
         return returncode
 
     def call(self) -> int:
-        """ Override for package installer specific logic.
+        """Override for package installer specific logic.
 
         Returns
         -------
@@ -1016,8 +1141,8 @@ class Installer():
         """
         raise NotImplementedError()
 
-    def _non_gui_print(self, text: str, end: Optional[str] = None) -> None:
-        """ Print output to console if not running in the GUI
+    def _non_gui_print(self, text: str, end: str | None = None) -> None:
+        """Print output to console if not running in the GUI
 
         Parameters
         ----------
@@ -1031,7 +1156,7 @@ class Installer():
         print(text, end=end)
 
     def _seen_line_log(self, text: str) -> None:
-        """ Output gets spammed to the log file when conda is waiting/processing. Only log each
+        """Output gets spammed to the log file when conda is waiting/processing. Only log each
         unique line once.
 
         Parameters
@@ -1046,7 +1171,7 @@ class Installer():
 
 
 class PexpectInstaller(Installer):  # pylint: disable=too-few-public-methods
-    """ Package installer for Linux/macOS using Pexpect
+    """Package installer for Linux/macOS using Pexpect
 
     Uses Pexpect for installing packages allowing access to realtime feedback
 
@@ -1061,8 +1186,9 @@ class PexpectInstaller(Installer):  # pylint: disable=too-few-public-methods
     is_gui: bool
         ``True if the process is being called from the Faceswap GUI
     """
+
     def call(self) -> int:
-        """ Install a package using the Pexpect module
+        """Install a package using the Pexpect module
 
         Returns
         -------
@@ -1070,8 +1196,13 @@ class PexpectInstaller(Installer):  # pylint: disable=too-few-public-methods
             The return code of the package install process
         """
         import pexpect  # pylint:disable=import-outside-toplevel,import-error
-        proc = pexpect.spawn(" ".join(self._command),
-                             encoding=self._env.encoding, codec_errors="replace", timeout=None)
+
+        proc = pexpect.spawn(
+            " ".join(self._command),
+            encoding=self._env.encoding,
+            codec_errors="replace",
+            timeout=None,
+        )
         while True:
             try:
                 idx = proc.expect(["\r\n", "\r"])
@@ -1093,7 +1224,7 @@ class PexpectInstaller(Installer):  # pylint: disable=too-few-public-methods
 
 
 class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
-    """ Package installer for Windows using WinPTY
+    """Package installer for Windows using WinPTY
 
     Spawns a pseudo PTY for installing packages allowing access to realtime feedback
 
@@ -1108,13 +1239,12 @@ class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
     is_gui: bool
         ``True if the process is being called from the Faceswap GUI
     """
-    def __init__(self,
-                 environment: Environment,
-                 package: str,
-                 command: List[str],
-                 is_gui: bool) -> None:
+
+    def __init__(
+        self, environment: Environment, package: str, command: list[str], is_gui: bool
+    ) -> None:
         super().__init__(environment, package, command, is_gui)
-        self._cmd = which(command[0], path=os.environ.get('PATH', os.defpath))
+        self._cmd = which(command[0], path=os.environ.get("PATH", os.defpath))
         self._cmdline = list2cmdline(command)
         logger.debug("cmd: '%s', cmdline: '%s'", self._cmd, self._cmdline)
 
@@ -1122,11 +1252,11 @@ class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
         self._eof = False
         self._read_bytes = 1024
 
-        self._lines: List[str] = []
+        self._lines: list[str] = []
         self._out = ""
 
     def _read_from_pty(self, proc: Any, winpty_error: Any) -> None:
-        """ Read :attr:`_num_bytes` from WinPTY. If there is an error reading, recursively halve
+        """Read :attr:`_num_bytes` from WinPTY. If there is an error reading, recursively halve
         the number of bytes read until we get a succesful read. If we get down to 1 byte without a
         succesful read, assume we are at EOF.
 
@@ -1164,8 +1294,8 @@ class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
         self._out += from_pty
 
     def _out_to_lines(self) -> None:
-        """ Process the winpty output into separate lines. Roll over any semi-consumed lines to the
-        next proc call. """
+        """Process the winpty output into separate lines. Roll over any semi-consumed lines to the
+        next proc call."""
         if "\n" not in self._out:
             return
 
@@ -1178,7 +1308,7 @@ class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
             self._lines = self._lines[:-1]
 
     def _parse_lines(self) -> None:
-        """ Process the latest batch of lines that have been received from winPTY. """
+        """Process the latest batch of lines that have been received from winPTY."""
         for line in self._lines:  # Dump the output to log
             line = line.rstrip()
             is_cr = bool(self._pbar.search(line))
@@ -1197,7 +1327,7 @@ class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
         self._lines = []
 
     def call(self) -> int:
-        """ Install a package using the PyWinPTY module
+        """Install a package using the PyWinPTY module
 
         Returns
         -------
@@ -1205,12 +1335,14 @@ class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
             The return code of the package install process
         """
         import winpty  # pylint:disable=import-outside-toplevel,import-error
+
         # For some reason with WinPTY we need to pass in the full command. Probably a bug
         proc = winpty.PTY(
             80 if self._env.is_installer else 100,
             24,
             backend=winpty.enums.Backend.WinPTY,  # ConPTY hangs and has lots of Ansi Escapes
-            agent_config=winpty.enums.AgentConfig.WINPTY_FLAG_PLAIN_OUTPUT)  # Strip all Ansi
+            agent_config=winpty.enums.AgentConfig.WINPTY_FLAG_PLAIN_OUTPUT,
+        )  # Strip all Ansi
 
         if not proc.spawn(self._cmd, cmdline=self._cmdline):
             del proc
@@ -1230,7 +1362,7 @@ class WinPTYInstaller(Installer):  # pylint: disable=too-few-public-methods
 
 
 class SubProcInstaller(Installer):
-    """ The fallback package installer if either of the OS specific installers fail.
+    """The fallback package installer if either of the OS specific installers fail.
 
     Uses the python Subprocess module to install packages. Feedback does not return in realtime
     so the process can look like it has hung to the end user
@@ -1246,33 +1378,35 @@ class SubProcInstaller(Installer):
     is_gui: bool
         ``True if the process is being called from the Faceswap GUI
     """
-    def __init__(self,
-                 environment: Environment,
-                 package: str,
-                 command: List[str],
-                 is_gui: bool) -> None:
+
+    def __init__(
+        self, environment: Environment, package: str, command: list[str], is_gui: bool
+    ) -> None:
         super().__init__(environment, package, command, is_gui)
         self._shell = self._env.os_version[0] == "Windows" and command[0] == "conda"
 
     def __call__(self) -> int:
-        """ Override default call function so we don't recursively call ourselves on failure. """
+        """Override default call function so we don't recursively call ourselves on failure."""
         returncode = self.call()
         logger.debug("Package: %s, returncode: %s", self._package, returncode)
         return returncode
 
     def call(self) -> int:
-        """ Install a package using the Subprocess module
+        """Install a package using the Subprocess module
 
         Returns
         -------
         int
             The return code of the package install process
         """
-        with Popen(self._command,
-                   bufsize=0, stdout=PIPE, stderr=STDOUT, shell=self._shell) as proc:
+        with Popen(
+            self._command, bufsize=0, stdout=PIPE, stderr=STDOUT, shell=self._shell
+        ) as proc:
             while True:
                 if proc.stdout is not None:
-                    line = proc.stdout.readline().decode(self._env.encoding, errors="replace")
+                    line = proc.stdout.readline().decode(
+                        self._env.encoding, errors="replace"
+                    )
                 returncode = proc.poll()
                 if line == "" and returncode is not None:
                     break
@@ -1293,11 +1427,12 @@ class SubProcInstaller(Installer):
         return returncode
 
 
-class Tips():
-    """ Display installation Tips """
+class Tips:
+    """Display installation Tips"""
+
     @classmethod
     def docker_no_cuda(cls) -> None:
-        """ Output Tips for Docker without Cuda """
+        """Output Tips for Docker without Cuda"""
         path = os.path.dirname(os.path.realpath(__file__))
         logger.info(
             "1. Install Docker\n"
@@ -1325,12 +1460,15 @@ class Tips():
             "\t-e UID=`id -u` \\ \n"
             "\tdeepfakes-cpu \n\n"
             "4. Open a new terminal to run faceswap.py in /srv\n"
-            "docker exec -it deepfakes-cpu bash", path, path)
+            "docker exec -it deepfakes-cpu bash",
+            path,
+            path,
+        )
         logger.info("That's all you need to do with a docker. Have fun.")
 
     @classmethod
     def docker_cuda(cls) -> None:
-        """ Output Tips for Docker with Cuda"""
+        """Output Tips for Docker with Cuda"""
         path = os.path.dirname(os.path.realpath(__file__))
         logger.info(
             "1. Install Docker\n"
@@ -1365,36 +1503,41 @@ class Tips():
             "\tdeepfakes-gpu\n\n"
             "6. Open a new terminal to interact with the project\n"
             "docker exec deepfakes-gpu python /srv/faceswap.py gui\n",
-            path, path)
+            path,
+            path,
+        )
 
     @classmethod
     def macos(cls) -> None:
-        """ Output Tips for macOS"""
+        """Output Tips for macOS"""
         logger.info(
             "setup.py does not directly support macOS. The following tips should help:\n\n"
             "1. Install system dependencies:\n"
             "XCode from the Apple Store\n"
             "XQuartz: https://www.xquartz.org/\n\n"
-
             "2a. It is recommended to use Anaconda for your Python Virtual Environment as this\n"
             "will handle the installation of CUDA and cuDNN for you:\n"
             "https://www.anaconda.com/distribution/\n\n"
-
             "2b. If you do not want to use Anaconda you will need to manually install CUDA and "
             "cuDNN:\n"
             "CUDA: https://developer.nvidia.com/cuda-downloads"
-            "cuDNN: https://developer.nvidia.com/rdp/cudnn-download\n\n")
+            "cuDNN: https://developer.nvidia.com/rdp/cudnn-download\n\n"
+        )
 
     @classmethod
     def pip(cls) -> None:
-        """ Pip Tips """
-        logger.info("1. Install PIP requirements\n"
-                    "You may want to execute `chcp 65001` in cmd line\n"
-                    "to fix Unicode issues on Windows when installing dependencies")
+        """Pip Tips"""
+        logger.info(
+            "1. Install PIP requirements\n"
+            "You may want to execute `chcp 65001` in cmd line\n"
+            "to fix Unicode issues on Windows when installing dependencies"
+        )
 
 
 if __name__ == "__main__":
-    logfile = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "faceswap_setup.log")
+    logfile = os.path.join(
+        os.path.dirname(os.path.realpath(sys.argv[0])), "faceswap_setup.log"
+    )
     log_setup("INFO", logfile, "setup")
     logger.debug("Setup called with args: %s", sys.argv)
     ENV = Environment()

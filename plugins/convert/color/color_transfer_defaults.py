@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
@@ -53,10 +54,10 @@ _DEFAULTS = dict(
     clip=dict(
         default=True,
         info="Should components of L*a*b* image be scaled by np.clip before converting back to "
-             "BGR color space?\nIf False then components will be min-max scaled appropriately.\n"
-             "Clipping will keep target image brightness truer to the input.\nScaling will adjust "
-             "image brightness to avoid washed out portions in the resulting color transfer that "
-             "can be caused by clipping.",
+        "BGR color space?\nIf False then components will be min-max scaled appropriately.\n"
+        "Clipping will keep target image brightness truer to the input.\nScaling will adjust "
+        "image brightness to avoid washed out portions in the resulting color transfer that "
+        "can be caused by clipping.",
         datatype=bool,
         group="method",
         rounding=None,
@@ -68,10 +69,10 @@ _DEFAULTS = dict(
     preserve_paper=dict(
         default=True,
         info="Should color transfer strictly follow methodology layed out in original paper?\nThe "
-             "method does not always produce aesthetically pleasing results.\nIf False then "
-             "L*a*b* components will be scaled using the reciprocal of the scaling factor "
-             "proposed in the paper. This method seems to produce more consistently aesthetically "
-             "pleasing results.",
+        "method does not always produce aesthetically pleasing results.\nIf False then "
+        "L*a*b* components will be scaled using the reciprocal of the scaling factor "
+        "proposed in the paper. This method seems to produce more consistently aesthetically "
+        "pleasing results.",
         datatype=bool,
         group="method",
         rounding=None,

@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = "Options for manually altering the balance of colors of the swapped face"
@@ -48,23 +49,23 @@ _DEFAULTS = {
     "colorspace": {
         "default": "HSV",
         "info": "The colorspace to use for adjustment: The three adjustment sliders will "
-                "effect the image differently depending on which colorspace is selected:"
-                "\n\t RGB: Red, Green, Blue. An additive colorspace where colors are obtained "
-                "by a linear combination of Red, Green, and Blue values. The three channels "
-                "are correlated by the amount of light hitting the surface. In RGB color "
-                "space the color information is separated into three channels but the same "
-                "three channels also encode brightness information."
-                "\n\t HSV: Hue, Saturation, Value. Hue - Dominant wavelength. Saturation - "
-                "Purity / shades of color. Value - Intensity. Best thing is that it uses only "
-                "one channel to describe color (H), making it very intuitive to specify color."
-                "\n\t LAB: Lightness, A, B. Lightness - Intensity. A - Color range from green "
-                "to magenta. B - Color range from blue to yellow. The L channel is "
-                "independent of color information and encodes brightness only. The other two "
-                "channels encode color."
-                "\n\t YCrCb: Y - Luminance or Luma component obtained from RGB after gamma "
-                "correction. Cr - how far is the red component from Luma. Cb - how far is the "
-                "blue component from Luma. Separates the luminance and chrominance components "
-                "into different channels.",
+        "effect the image differently depending on which colorspace is selected:"
+        "\n\t RGB: Red, Green, Blue. An additive colorspace where colors are obtained "
+        "by a linear combination of Red, Green, and Blue values. The three channels "
+        "are correlated by the amount of light hitting the surface. In RGB color "
+        "space the color information is separated into three channels but the same "
+        "three channels also encode brightness information."
+        "\n\t HSV: Hue, Saturation, Value. Hue - Dominant wavelength. Saturation - "
+        "Purity / shades of color. Value - Intensity. Best thing is that it uses only "
+        "one channel to describe color (H), making it very intuitive to specify color."
+        "\n\t LAB: Lightness, A, B. Lightness - Intensity. A - Color range from green "
+        "to magenta. B - Color range from blue to yellow. The L channel is "
+        "independent of color information and encodes brightness only. The other two "
+        "channels encode color."
+        "\n\t YCrCb: Y - Luminance or Luma component obtained from RGB after gamma "
+        "correction. Cr - how far is the red component from Luma. Cb - how far is the "
+        "blue component from Luma. Separates the luminance and chrominance components "
+        "into different channels.",
         "datatype": str,
         "rounding": None,
         "min_max": None,
@@ -76,10 +77,10 @@ _DEFAULTS = {
     "balance_1": {
         "default": 0.0,
         "info": "Balance of channel 1:"
-                "\n\tRGB: Red"
-                "\n\tHSV: Hue"
-                "\n\tLAB: Lightness"
-                "\n\tYCrCb: Luma",
+        "\n\tRGB: Red"
+        "\n\tHSV: Hue"
+        "\n\tLAB: Lightness"
+        "\n\tYCrCb: Luma",
         "datatype": float,
         "rounding": 1,
         "min_max": (-100.0, 100.0),
@@ -91,10 +92,10 @@ _DEFAULTS = {
     "balance_2": {
         "default": 0.0,
         "info": "Balance of channel 2:"
-                "\n\tRGB: Green"
-                "\n\tHSV: Saturation"
-                "\n\tLAB: Green > Magenta"
-                "\n\tYCrCb: Distance of red from Luma",
+        "\n\tRGB: Green"
+        "\n\tHSV: Saturation"
+        "\n\tLAB: Green > Magenta"
+        "\n\tYCrCb: Distance of red from Luma",
         "datatype": float,
         "rounding": 1,
         "min_max": (-100.0, 100.0),
@@ -106,10 +107,10 @@ _DEFAULTS = {
     "balance_3": {
         "default": 0.0,
         "info": "Balance of channel 3:"
-                "\n\tRGB: Blue"
-                "\n\tHSV: Intensity"
-                "\n\tLAB: Blue > Yellow"
-                "\n\tYCrCb: Distance of blue from Luma",
+        "\n\tRGB: Blue"
+        "\n\tHSV: Intensity"
+        "\n\tLAB: Blue > Yellow"
+        "\n\tYCrCb: Distance of blue from Luma",
         "datatype": float,
         "rounding": 1,
         "min_max": (-100.0, 100.0),

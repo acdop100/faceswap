@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """ Plugin loader for Faceswap extract, training and convert tasks """
+from __future__ import annotations
 
 import logging
 import os
 import sys
 from importlib import import_module
-from typing import Callable, List, Type, TYPE_CHECKING
+from typing import Callable
+from typing import List
+from typing import Type
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from plugins.extract.detect._base import Detector
@@ -15,16 +19,13 @@ if TYPE_CHECKING:
     from plugins.train.model._base import ModelBase
     from plugins.train.trainer._base import TrainerBase
 
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from typing import Literal
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class PluginLoader():
-    """ Retrieve, or get information on, Faceswap plugins
+class PluginLoader:
+    """Retrieve, or get information on, Faceswap plugins
 
     Return a specific plugin, list available plugins, or get the default plugin for a
     task.
@@ -35,9 +36,10 @@ class PluginLoader():
     >>> align_plugins = PluginLoader.get_available_extractors('align')
     >>> aligner = PluginLoader.get_aligner('cv2-dnn')
     """
+
     @staticmethod
-    def get_detector(name: str, disable_logging: bool = False) -> Type["Detector"]:
-        """ Return requested detector plugin
+    def get_detector(name: str, disable_logging: bool = False) -> type[Detector]:
+        """Return requested detector plugin
 
         Parameters
         ----------
@@ -55,8 +57,8 @@ class PluginLoader():
         return PluginLoader._import("extract.detect", name, disable_logging)
 
     @staticmethod
-    def get_aligner(name: str, disable_logging: bool = False) -> Type["Aligner"]:
-        """ Return requested aligner plugin
+    def get_aligner(name: str, disable_logging: bool = False) -> type[Aligner]:
+        """Return requested aligner plugin
 
         Parameters
         ----------
@@ -74,8 +76,8 @@ class PluginLoader():
         return PluginLoader._import("extract.align", name, disable_logging)
 
     @staticmethod
-    def get_masker(name: str, disable_logging: bool = False) -> Type["Masker"]:
-        """ Return requested masker plugin
+    def get_masker(name: str, disable_logging: bool = False) -> type[Masker]:
+        """Return requested masker plugin
 
         Parameters
         ----------
@@ -93,8 +95,8 @@ class PluginLoader():
         return PluginLoader._import("extract.mask", name, disable_logging)
 
     @staticmethod
-    def get_recognition(name: str, disable_logging: bool = False) -> Type["Identity"]:
-        """ Return requested recognition plugin
+    def get_recognition(name: str, disable_logging: bool = False) -> type[Identity]:
+        """Return requested recognition plugin
 
         Parameters
         ----------
@@ -112,8 +114,8 @@ class PluginLoader():
         return PluginLoader._import("extract.recognition", name, disable_logging)
 
     @staticmethod
-    def get_model(name: str, disable_logging: bool = False) -> Type["ModelBase"]:
-        """ Return requested training model plugin
+    def get_model(name: str, disable_logging: bool = False) -> type[ModelBase]:
+        """Return requested training model plugin
 
         Parameters
         ----------
@@ -131,8 +133,8 @@ class PluginLoader():
         return PluginLoader._import("train.model", name, disable_logging)
 
     @staticmethod
-    def get_trainer(name: str, disable_logging: bool = False) -> Type["TrainerBase"]:
-        """ Return requested training trainer plugin
+    def get_trainer(name: str, disable_logging: bool = False) -> type[TrainerBase]:
+        """Return requested training trainer plugin
 
         Parameters
         ----------
@@ -150,8 +152,10 @@ class PluginLoader():
         return PluginLoader._import("train.trainer", name, disable_logging)
 
     @staticmethod
-    def get_converter(category: str, name: str, disable_logging: bool = False) -> Callable:
-        """ Return requested converter plugin
+    def get_converter(
+        category: str, name: str, disable_logging: bool = False
+    ) -> Callable:
+        """Return requested converter plugin
 
         Converters work slightly differently to other faceswap plugins. They are created to do a
         specific task (e.g. color adjustment, mask blending etc.), so multiple plugins will be
@@ -174,7 +178,7 @@ class PluginLoader():
 
     @staticmethod
     def _import(attr: str, name: str, disable_logging: bool):
-        """ Import the plugin's module
+        """Import the plugin's module
 
         Parameters
         ----------
@@ -198,10 +202,12 @@ class PluginLoader():
         return getattr(module, ttl)
 
     @staticmethod
-    def get_available_extractors(extractor_type: Literal["align", "detect", "mask"],
-                                 add_none: bool = False,
-                                 extend_plugin: bool = False) -> List[str]:
-        """ Return a list of available extractors of the given type
+    def get_available_extractors(
+        extractor_type: Literal["align", "detect", "mask"],
+        add_none: bool = False,
+        extend_plugin: bool = False,
+    ) -> list[str]:
+        """Return a list of available extractors of the given type
 
         Parameters
         ----------
@@ -222,17 +228,20 @@ class PluginLoader():
         list:
             A list of the available extractor plugin names for the given type
         """
-        extractpath = os.path.join(os.path.dirname(__file__),
-                                   "extract",
-                                   extractor_type)
-        extractors = [item.name.replace(".py", "").replace("_", "-")
-                      for item in os.scandir(extractpath)
-                      if not item.name.startswith("_")
-                      and not item.name.endswith("defaults.py")
-                      and item.name.endswith(".py")]
+        extractpath = os.path.join(os.path.dirname(__file__), "extract", extractor_type)
+        extractors = [
+            item.name.replace(".py", "").replace("_", "-")
+            for item in os.scandir(extractpath)
+            if not item.name.startswith("_")
+            and not item.name.endswith("defaults.py")
+            and item.name.endswith(".py")
+        ]
         extendable = ["bisenet-fp", "custom"]
-        if extend_plugin and extractor_type == "mask" and any(ext in extendable
-                                                              for ext in extractors):
+        if (
+            extend_plugin
+            and extractor_type == "mask"
+            and any(ext in extendable for ext in extractors)
+        ):
             for msk in extendable:
                 extractors.remove(msk)
                 extractors.extend([f"{msk}_face", f"{msk}_head"])
@@ -243,8 +252,8 @@ class PluginLoader():
         return extractors
 
     @staticmethod
-    def get_available_models() -> List[str]:
-        """ Return a list of available training models
+    def get_available_models() -> list[str]:
+        """Return a list of available training models
 
         Returns
         -------
@@ -252,16 +261,18 @@ class PluginLoader():
             A list of the available training model plugin names
         """
         modelpath = os.path.join(os.path.dirname(__file__), "train", "model")
-        models = sorted(item.name.replace(".py", "").replace("_", "-")
-                        for item in os.scandir(modelpath)
-                        if not item.name.startswith("_")
-                        and not item.name.endswith("defaults.py")
-                        and item.name.endswith(".py"))
+        models = sorted(
+            item.name.replace(".py", "").replace("_", "-")
+            for item in os.scandir(modelpath)
+            if not item.name.startswith("_")
+            and not item.name.endswith("defaults.py")
+            and item.name.endswith(".py")
+        )
         return models
 
     @staticmethod
     def get_default_model() -> str:
-        """ Return the default training model plugin name
+        """Return the default training model plugin name
 
         Returns
         -------
@@ -270,11 +281,13 @@ class PluginLoader():
 
         """
         models = PluginLoader.get_available_models()
-        return 'original' if 'original' in models else models[0]
+        return "original" if "original" in models else models[0]
 
     @staticmethod
-    def get_available_convert_plugins(convert_category: str, add_none: bool = True) -> List[str]:
-        """ Return a list of available converter plugins in the given category
+    def get_available_convert_plugins(
+        convert_category: str, add_none: bool = True
+    ) -> list[str]:
+        """Return a list of available converter plugins in the given category
 
         Parameters
         ----------
@@ -289,14 +302,16 @@ class PluginLoader():
             A list of the available converter plugin names in the given category
         """
 
-        convertpath = os.path.join(os.path.dirname(__file__),
-                                   "convert",
-                                   convert_category)
-        converters = sorted(item.name.replace(".py", "").replace("_", "-")
-                            for item in os.scandir(convertpath)
-                            if not item.name.startswith("_")
-                            and not item.name.endswith("defaults.py")
-                            and item.name.endswith(".py"))
+        convertpath = os.path.join(
+            os.path.dirname(__file__), "convert", convert_category
+        )
+        converters = sorted(
+            item.name.replace(".py", "").replace("_", "-")
+            for item in os.scandir(convertpath)
+            if not item.name.startswith("_")
+            and not item.name.endswith("defaults.py")
+            and item.name.endswith(".py")
+        )
         if add_none:
             converters.insert(0, "none")
         return converters

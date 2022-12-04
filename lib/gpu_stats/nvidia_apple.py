@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """ Collects and returns Information on available Nvidia GPUs connected to Apple Macs. """
+from __future__ import annotations
+
 from typing import List
 
 import pynvx
 
-from lib.utils import FaceswapError
-
 from ._base import _GPUStats
+from lib.utils import FaceswapError
 
 
 class NvidiaAppleStats(_GPUStats):
-    """ Holds information and statistics about Nvidia GPU(s) available on the currently
+    """Holds information and statistics about Nvidia GPU(s) available on the currently
     running Apple system.
 
     Notes
@@ -29,7 +30,7 @@ class NvidiaAppleStats(_GPUStats):
     """
 
     def _initialize(self) -> None:
-        """ Initialize PyNvx for Nvidia GPUs on Apple.
+        """Initialize PyNvx for Nvidia GPUs on Apple.
 
         If :attr:`_is_initialized` is ``True`` then this function just returns performing no
         action. Otherwise :attr:`is_initialized` is set to ``True`` after successfully
@@ -46,18 +47,20 @@ class NvidiaAppleStats(_GPUStats):
         try:
             pynvx.cudaInit()  # pylint:disable=no-member
         except RuntimeError as err:
-            msg = ("An unhandled exception occured reading from the Nvidia Machine Learning "
-                   f"Library. Original error: {str(err)}")
+            msg = (
+                "An unhandled exception occured reading from the Nvidia Machine Learning "
+                f"Library. Original error: {str(err)}"
+            )
             raise FaceswapError(msg) from err
         super()._initialize()
 
     def _shutdown(self) -> None:
-        """ Set :attr:`_is_initialized` back to ``False``. """
+        """Set :attr:`_is_initialized` back to ``False``."""
         self._log("debug", "Shutting down NVML")
         super()._shutdown()
 
     def _get_device_count(self) -> int:
-        """ Detect the number of GPUs attached to the system.
+        """Detect the number of GPUs attached to the system.
 
         Returns
         -------
@@ -69,7 +72,7 @@ class NvidiaAppleStats(_GPUStats):
         return retval
 
     def _get_handles(self) -> list:
-        """ Obtain the device handles for all Apple connected Nvidia GPUs.
+        """Obtain the device handles for all Apple connected Nvidia GPUs.
 
         Returns
         -------
@@ -81,32 +84,36 @@ class NvidiaAppleStats(_GPUStats):
         return handles
 
     def _get_driver(self) -> str:
-        """ Obtain the Nvidia driver version currently in use.
+        """Obtain the Nvidia driver version currently in use.
 
         Returns
         -------
         str
             The current GPU driver version
         """
-        driver = pynvx.cudaSystemGetDriverVersion(ignore=True)  # pylint:disable=no-member
+        driver = pynvx.cudaSystemGetDriverVersion(
+            ignore=True
+        )  # pylint:disable=no-member
         self._log("debug", f"GPU Driver: {driver}")
         return driver
 
-    def _get_device_names(self) -> List[str]:
-        """ Obtain the list of names of connected Nvidia GPUs as identified in :attr:`_handles`.
+    def _get_device_names(self) -> list[str]:
+        """Obtain the list of names of connected Nvidia GPUs as identified in :attr:`_handles`.
 
         Returns
         -------
         list
             The list of connected Nvidia GPU names
         """
-        names = [pynvx.cudaGetName(handle, ignore=True)  # pylint:disable=no-member
-                 for handle in self._handles]
+        names = [
+            pynvx.cudaGetName(handle, ignore=True)  # pylint:disable=no-member
+            for handle in self._handles
+        ]
         self._log("debug", f"GPU Devices: {names}")
         return names
 
-    def _get_vram(self) -> List[int]:
-        """ Obtain the VRAM in Megabytes for each connected Nvidia GPU as identified in
+    def _get_vram(self) -> list[int]:
+        """Obtain the VRAM in Megabytes for each connected Nvidia GPU as identified in
         :attr:`_handles`.
 
         Returns
@@ -115,13 +122,15 @@ class NvidiaAppleStats(_GPUStats):
             The VRAM in Megabytes for each connected Nvidia GPU
         """
         vram = [
-            pynvx.cudaGetMemTotal(handle, ignore=True) / (1024 * 1024)  # pylint:disable=no-member
-            for handle in self._handles]
+            pynvx.cudaGetMemTotal(handle, ignore=True)
+            / (1024 * 1024)  # pylint:disable=no-member
+            for handle in self._handles
+        ]
         self._log("debug", f"GPU VRAM: {vram}")
         return vram
 
-    def _get_free_vram(self) -> List[int]:
-        """ Obtain the amount of VRAM that is available, in Megabytes, for each connected Nvidia
+    def _get_free_vram(self) -> list[int]:
+        """Obtain the amount of VRAM that is available, in Megabytes, for each connected Nvidia
         GPU.
 
         Returns
@@ -131,7 +140,9 @@ class NvidiaAppleStats(_GPUStats):
              connected GPU as corresponding to the values in :attr:`_handles
         """
         vram = [
-            pynvx.cudaGetMemFree(handle, ignore=True) / (1024 * 1024)  # pylint:disable=no-member
-            for handle in self._handles]
+            pynvx.cudaGetMemFree(handle, ignore=True)
+            / (1024 * 1024)  # pylint:disable=no-member
+            for handle in self._handles
+        ]
         self._log("debug", f"GPU VRAM free: {vram}")
         return vram

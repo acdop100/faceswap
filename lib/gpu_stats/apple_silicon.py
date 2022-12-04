@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """ Collects and returns Information on available Apple Silicon SoCs in Apple Macs. """
-from typing import Any, List
+from __future__ import annotations
 
 import os
+from typing import Any
+from typing import List
+
 import psutil
 import tensorflow as tf
 
-from lib.utils import FaceswapError
-
 from ._base import _GPUStats
+from lib.utils import FaceswapError
 
 
 _METAL_INITIALIZED: bool = False
 
 
 class AppleSiliconStats(_GPUStats):
-    """ Holds information and statistics about Apple Silicon SoC(s) available on the currently
+    """Holds information and statistics about Apple Silicon SoC(s) available on the currently
     running Apple system.
 
     Notes
@@ -33,14 +35,15 @@ class AppleSiliconStats(_GPUStats):
         available then this parameter should be set to ``False``. Otherwise set to ``True``.
         Default: ``True``
     """
+
     def __init__(self, log: bool = True) -> None:
         # Following attribute set in :func:``_initialize``
-        self._tf_devices: List[Any] = []
+        self._tf_devices: list[Any] = []
 
         super().__init__(log=log)
 
     def _initialize(self) -> None:
-        """ Initialize Metal for Apple Silicon SoC(s).
+        """Initialize Metal for Apple Silicon SoC(s).
 
         If :attr:`_is_initialized` is ``True`` then this function just returns performing no
         action. Otherwise :attr:`is_initialized` is set to ``True`` after successfully
@@ -56,7 +59,7 @@ class AppleSiliconStats(_GPUStats):
         super()._initialize()
 
     def _initialize_metal(self) -> None:
-        """ Initialize Metal on first call to this class and set global
+        """Initialize Metal on first call to this class and set global
         :attr:``_METAL_INITIALIZED`` to ``True``. If Metal has already been initialized then return
         performing no action.
         """
@@ -79,7 +82,7 @@ class AppleSiliconStats(_GPUStats):
         _METAL_INITIALIZED = True
 
     def _test_tensorflow(self) -> None:
-        """ Test that tensorflow can execute correctly.
+        """Test that tensorflow can execute correctly.
 
         Raises
         ------
@@ -87,17 +90,21 @@ class AppleSiliconStats(_GPUStats):
             If the Tensorflow library could not be successfully initialized
         """
         try:
-            meminfo = tf.config.experimental.get_memory_info('GPU:0')
+            meminfo = tf.config.experimental.get_memory_info("GPU:0")
             devices = tf.config.list_logical_devices()
-            self._log("debug",
-                      f"Tensorflow initialization test: (mem_info: {meminfo}, devices: {devices}")
+            self._log(
+                "debug",
+                f"Tensorflow initialization test: (mem_info: {meminfo}, devices: {devices}",
+            )
         except RuntimeError as err:
-            msg = ("An unhandled exception occured initializing the device via Tensorflow "
-                   f"Library. Original error: {str(err)}")
+            msg = (
+                "An unhandled exception occured initializing the device via Tensorflow "
+                f"Library. Original error: {str(err)}"
+            )
             raise FaceswapError(msg) from err
 
     def _get_device_count(self) -> int:
-        """ Detect the number of SoCs attached to the system.
+        """Detect the number of SoCs attached to the system.
 
         Returns
         -------
@@ -109,7 +116,7 @@ class AppleSiliconStats(_GPUStats):
         return retval
 
     def _get_handles(self) -> list:
-        """ Obtain the device handles for all available Apple Silicon SoCs.
+        """Obtain the device handles for all available Apple Silicon SoCs.
 
         Notes
         -----
@@ -126,7 +133,7 @@ class AppleSiliconStats(_GPUStats):
         return handles
 
     def _get_driver(self) -> str:
-        """ Obtain the Apple Silicon driver version currently in use.
+        """Obtain the Apple Silicon driver version currently in use.
 
         Notes
         -----
@@ -142,8 +149,8 @@ class AppleSiliconStats(_GPUStats):
         self._log("debug", f"GPU Driver: {driver}")
         return driver
 
-    def _get_device_names(self) -> List[str]:
-        """ Obtain the list of names of available Apple Silicon SoC(s) as identified in
+    def _get_device_names(self) -> list[str]:
+        """Obtain the list of names of available Apple Silicon SoC(s) as identified in
         :attr:`_handles`.
 
         Returns
@@ -155,8 +162,8 @@ class AppleSiliconStats(_GPUStats):
         self._log("debug", f"GPU Devices: {names}")
         return names
 
-    def _get_vram(self) -> List[int]:
-        """ Obtain the VRAM in Megabytes for each available Apple Silicon SoC(s) as identified in
+    def _get_vram(self) -> list[int]:
+        """Obtain the VRAM in Megabytes for each available Apple Silicon SoC(s) as identified in
         :attr:`_handles`.
 
         Notes
@@ -170,13 +177,15 @@ class AppleSiliconStats(_GPUStats):
         list
             The RAM in Megabytes for each available Apple Silicon SoC
         """
-        vram = [int((psutil.virtual_memory().total / self._device_count) / (1024 * 1024))
-                for _ in range(self._device_count)]
+        vram = [
+            int((psutil.virtual_memory().total / self._device_count) / (1024 * 1024))
+            for _ in range(self._device_count)
+        ]
         self._log("debug", f"SoC RAM: {vram}")
         return vram
 
-    def _get_free_vram(self) -> List[int]:
-        """ Obtain the amount of VRAM that is available, in Megabytes, for each available Apple
+    def _get_free_vram(self) -> list[int]:
+        """Obtain the amount of VRAM that is available, in Megabytes, for each available Apple
         Silicon SoC.
 
         Returns
@@ -185,7 +194,11 @@ class AppleSiliconStats(_GPUStats):
              List of `float`s containing the amount of RAM available, in Megabytes, for each
              available SoC as corresponding to the values in :attr:`_handles
         """
-        vram = [int((psutil.virtual_memory().available / self._device_count) / (1024 * 1024))
-                for _ in range(self._device_count)]
+        vram = [
+            int(
+                (psutil.virtual_memory().available / self._device_count) / (1024 * 1024)
+            )
+            for _ in range(self._device_count)
+        ]
         self._log("debug", f"SoC RAM free: {vram}")
         return vram

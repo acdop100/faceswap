@@ -1,18 +1,24 @@
 #!/usr/bin python3
 """ Process wrapper for underlying faceswap commands for the GUI """
-import os
+from __future__ import annotations
+
 import logging
+import os
 import re
 import signal
-from subprocess import PIPE, Popen
 import sys
+from subprocess import PIPE
+from subprocess import Popen
 from threading import Thread
 from time import time
 
 import psutil
 
 from .analysis import Session
-from .utils import get_config, get_images, LongRunningTask, preview_trigger
+from .utils import get_config
+from .utils import get_images
+from .utils import LongRunningTask
+from .utils import preview_trigger
 
 if os.name == "nt":
     import win32console  # pylint: disable=import-error
@@ -21,9 +27,9 @@ if os.name == "nt":
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class ProcessWrapper():
-    """ Builds command, launches and terminates the underlying
-        faceswap process. Updates GUI display depending on state """
+class ProcessWrapper:
+    """Builds command, launches and terminates the underlying
+    faceswap process. Updates GUI display depending on state"""
 
     def __init__(self):
         logger.debug("Initializing %s", self.__class__.__name__)
@@ -37,13 +43,13 @@ class ProcessWrapper():
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def set_callbacks(self):
-        """ Set the tkinter variable callbacks """
+        """Set the tkinter variable callbacks"""
         logger.debug("Setting tk variable traces")
         self.tk_vars.action_command.trace("w", self.action_command)
         self.tk_vars.generate_command.trace("w", self.generate_command)
 
     def action_command(self, *args):
-        """ The action to perform when the action button is pressed """
+        """The action to perform when the action button is pressed"""
         if not self.tk_vars.action_command.get():
             return
         category, command = self.tk_vars.action_command.get().split(",")
@@ -57,7 +63,7 @@ class ProcessWrapper():
         self.tk_vars.action_command.set("")
 
     def generate_command(self, *args):
-        """ Generate the command line arguments and output """
+        """Generate the command line arguments and output"""
         if not self.tk_vars.generate_command.get():
             return
         category, command = self.tk_vars.generate_command.get().split(",")
@@ -68,7 +74,7 @@ class ProcessWrapper():
         self.tk_vars.generate_command.set("")
 
     def prepare(self, category):
-        """ Prepare the environment for execution """
+        """Prepare the environment for execution"""
         logger.debug("Preparing for execution")
         self.tk_vars.running_task.set(True)
         self.tk_vars.console_clear.set(True)
@@ -77,7 +83,9 @@ class ProcessWrapper():
         print("Loading...")
 
         self.statusbar.message.set(f"Executing - {self.command}.py")
-        mode = "indeterminate" if self.command in ("effmpeg", "train") else "determinate"
+        mode = (
+            "indeterminate" if self.command in ("effmpeg", "train") else "determinate"
+        )
         self.statusbar.start(mode)
 
         args = self.build_args(category)
@@ -86,13 +94,17 @@ class ProcessWrapper():
         return args
 
     def build_args(self, category, command=None, generate=False):
-        """ Build the faceswap command and arguments list.
+        """Build the faceswap command and arguments list.
 
         If training, pass the model folder and name to the training
         :class:`lib.gui.analysis.Session` for the GUI.
         """
-        logger.debug("Build cli arguments: (category: %s, command: %s, generate: %s)",
-                     category, command, generate)
+        logger.debug(
+            "Build cli arguments: (category: %s, command: %s, generate: %s)",
+            category,
+            command,
+            generate,
+        )
         command = self.command if not command else command
         script = f"{category}.py"
         pathexecscript = os.path.join(self.pathscript, script)
@@ -110,14 +122,19 @@ class ProcessWrapper():
             args.append("-gui")  # Indicate to Faceswap that we are running the GUI
         if generate:
             # Delimit args with spaces
-            args = [f'"{arg}"' if " " in arg and not arg.startswith(("[", "("))
-                    and not arg.endswith(("]", ")")) else arg
-                    for arg in args]
+            args = [
+                f'"{arg}"'
+                if " " in arg
+                and not arg.startswith(("[", "("))
+                and not arg.endswith(("]", ")"))
+                else arg
+                for arg in args
+            ]
         logger.debug("Built cli arguments: (%s)", args)
         return args
 
     def _get_training_session_info(self, cli_option):
-        """ Set the model folder and model name to :`attr:_training_session_location` so the global
+        """Set the model folder and model name to :`attr:_training_session_location` so the global
         session picks them up for logging to the graph and analysis tab.
 
         Parameters
@@ -126,14 +143,20 @@ class ProcessWrapper():
             The command line option to be checked for model folder or name
         """
         if cli_option[0] == "-t":
-            self._training_session_location["model_name"] = cli_option[1].lower().replace("-", "_")
-            logger.debug("model_name: '%s'", self._training_session_location["model_name"])
+            self._training_session_location["model_name"] = (
+                cli_option[1].lower().replace("-", "_")
+            )
+            logger.debug(
+                "model_name: '%s'", self._training_session_location["model_name"]
+            )
         if cli_option[0] == "-m":
             self._training_session_location["model_folder"] = cli_option[1]
-            logger.debug("model_folder: '%s'", self._training_session_location["model_folder"])
+            logger.debug(
+                "model_folder: '%s'", self._training_session_location["model_folder"]
+            )
 
     def terminate(self, message):
-        """ Finalize wrapper when process has exited """
+        """Finalize wrapper when process has exited"""
         logger.debug("Terminating Faceswap processes")
         self.tk_vars.running_task.set(False)
         if self.task.command == "train":
@@ -149,8 +172,9 @@ class ProcessWrapper():
         print("Process exited.")
 
 
-class FaceswapControl():
-    """ Control the underlying Faceswap tasks """
+class FaceswapControl:
+    """Control the underlying Faceswap tasks"""
+
     def __init__(self, wrapper):
         logger.debug("Initializing %s", self.__class__.__name__)
         self.wrapper = wrapper
@@ -164,20 +188,25 @@ class FaceswapControl():
         self.train_stats = {"iterations": 0, "timestamp": None}
         self.consoleregex = {
             "loss": re.compile(r"[\W]+(\d+)?[\W]+([a-zA-Z\s]*)[\W]+?(\d+\.\d+)"),
-            "tqdm": re.compile(r"(?P<dsc>.*?)(?P<pct>\d+%).*?(?P<itm>\S+/\S+)\W\["
-                               r"(?P<tme>[\d+:]+<.*),\W(?P<rte>.*)[a-zA-Z/]*\]"),
-            "ffmpeg": re.compile(r"([a-zA-Z]+)=\s*(-?[\d|N/A]\S+)")}
+            "tqdm": re.compile(
+                r"(?P<dsc>.*?)(?P<pct>\d+%).*?(?P<itm>\S+/\S+)\W\["
+                r"(?P<tme>[\d+:]+<.*),\W(?P<rte>.*)[a-zA-Z/]*\]"
+            ),
+            "ffmpeg": re.compile(r"([a-zA-Z]+)=\s*(-?[\d|N/A]\S+)"),
+        }
         logger.debug("Initialized %s", self.__class__.__name__)
 
     def execute_script(self, command, args):
-        """ Execute the requested Faceswap Script """
+        """Execute the requested Faceswap Script"""
         logger.debug("Executing Faceswap: (command: '%s', args: %s)", command, args)
         self.thread = None
         self.command = command
-        kwargs = {"stdout": PIPE,
-                  "stderr": PIPE,
-                  "bufsize": 1,
-                  "universal_newlines": True}
+        kwargs = {
+            "stdout": PIPE,
+            "stderr": PIPE,
+            "bufsize": 1,
+            "universal_newlines": True,
+        }
 
         self.process = Popen(args, **kwargs, stdin=PIPE)
         self.thread_stdout()
@@ -185,7 +214,7 @@ class FaceswapControl():
         logger.debug("Executed Faceswap")
 
     def _process_progress_stdout(self, output: str) -> bool:
-        """ Process stdout for any faceswap processes that update the status/progress bar(s)
+        """Process stdout for any faceswap processes that update the status/progress bar(s)
 
         Parameters
         ----------
@@ -209,7 +238,7 @@ class FaceswapControl():
         return False
 
     def _process_training_stdout(self, output: str) -> None:
-        """ Process any triggers that are required to update the GUI when Faceswap is running a
+        """Process any triggers that are required to update the GUI when Faceswap is running a
         training session.
 
         Parameters
@@ -224,18 +253,25 @@ class FaceswapControl():
             return
 
         logger.debug("Trigger GUI Training update")
-        logger.trace("tk_vars: %s", {itm: var.get()  # type:ignore
-                                     for itm, var in self.wrapper.tk_vars.__dict__.items()})
+        logger.trace(
+            "tk_vars: %s",
+            {
+                itm: var.get()  # type:ignore
+                for itm, var in self.wrapper.tk_vars.__dict__.items()
+            },
+        )
         if not Session.is_training:
             # Don't initialize session until after the first save as state file must exist first
             logger.debug("Initializing curret training session")
-            Session.initialize_session(self._session_info["model_folder"],
-                                       self._session_info["model_name"],
-                                       is_training=True)
+            Session.initialize_session(
+                self._session_info["model_folder"],
+                self._session_info["model_name"],
+                is_training=True,
+            )
         self.wrapper.tk_vars.refresh_graph.set(True)
 
     def read_stdout(self) -> None:
-        """ Read stdout from the subprocess. """
+        """Read stdout from the subprocess."""
         logger.debug("Opening stdout reader")
         while True:
             try:
@@ -261,8 +297,8 @@ class FaceswapControl():
         logger.debug("Terminated stdout reader. returncode: %s", returncode)
 
     def read_stderr(self):
-        """ Read stdout from the subprocess. If training, pass the loss
-        values to Queue """
+        """Read stdout from the subprocess. If training, pass the loss
+        values to Queue"""
         logger.debug("Opening stderr reader")
         while True:
             try:
@@ -276,10 +312,15 @@ class FaceswapControl():
             if output:
                 if self.command != "train" and self.capture_tqdm(output):
                     continue
-                if self.command == "train" and output.startswith("Reading training images"):
+                if self.command == "train" and output.startswith(
+                    "Reading training images"
+                ):
                     print(output.strip(), file=sys.stdout)
                     continue
-                if os.name == "nt" and "Call to CreateProcess failed. Error code: 2" in output:
+                if (
+                    os.name == "nt"
+                    and "Call to CreateProcess failed. Error code: 2" in output
+                ):
                     # Suppress ptxas errors on Tensorflow for Windows
                     logger.debug("Suppressed call to subprocess error: '%s'", output)
                     continue
@@ -287,8 +328,8 @@ class FaceswapControl():
         logger.debug("Terminated stderr reader")
 
     def thread_stdout(self):
-        """ Put the subprocess stdout so that it can be read without
-        blocking """
+        """Put the subprocess stdout so that it can be read without
+        blocking"""
         logger.debug("Threading stdout")
         thread = Thread(target=self.read_stdout)
         thread.daemon = True
@@ -296,8 +337,8 @@ class FaceswapControl():
         logger.debug("Threaded stdout")
 
     def thread_stderr(self):
-        """ Put the subprocess stderr so that it can be read without
-        blocking """
+        """Put the subprocess stderr so that it can be read without
+        blocking"""
         logger.debug("Threading stderr")
         thread = Thread(target=self.read_stderr)
         thread.daemon = True
@@ -305,7 +346,7 @@ class FaceswapControl():
         logger.debug("Threaded stderr")
 
     def capture_loss(self, string):
-        """ Capture loss values from stdout """
+        """Capture loss values from stdout"""
         logger.trace("Capturing loss")
         if not str.startswith(string, "["):
             logger.trace("Not loss message. Returning False")
@@ -332,14 +373,16 @@ class FaceswapControl():
         self.train_stats["iterations"] = iterations
 
         elapsed = self.calc_elapsed()
-        message = (f"Elapsed: {elapsed} | "
-                   f"Session Iterations: {self.train_stats['iterations']}  {message}")
+        message = (
+            f"Elapsed: {elapsed} | "
+            f"Session Iterations: {self.train_stats['iterations']}  {message}"
+        )
         self.statusbar.progress_update(message, 0, False)
         logger.trace("Succesfully captured loss: %s", message)
         return True
 
     def calc_elapsed(self):
-        """ Calculate and format time since training started """
+        """Calculate and format time since training started"""
         now = time()
         elapsed_time = now - self.train_stats["timestamp"]
         try:
@@ -355,7 +398,7 @@ class FaceswapControl():
         return f"{hrs}:{mins}:{secs}"
 
     def capture_tqdm(self, string):
-        """ Capture tqdm output for progress bar """
+        """Capture tqdm output for progress bar"""
         logger.trace("Capturing tqdm")
         tqdm = self.consoleregex["tqdm"].match(string)
         if not tqdm:
@@ -366,8 +409,10 @@ class FaceswapControl():
             return True
         description = tqdm["dsc"].strip()
         description = description if description == "" else f"{description[:-1]}  |  "
-        processtime = (f"Elapsed: {tqdm['tme'].split('<')[0]}  "
-                       f"Remaining: {tqdm['tme'].split('<')[1]}")
+        processtime = (
+            f"Elapsed: {tqdm['tme'].split('<')[0]}  "
+            f"Remaining: {tqdm['tme'].split('<')[1]}"
+        )
         msg = f"{description}{processtime}  |  {tqdm['rte']}  |  {tqdm['itm']}  |  {tqdm['pct']}"
 
         position = tqdm["pct"].replace("%", "")
@@ -378,7 +423,7 @@ class FaceswapControl():
         return True
 
     def capture_ffmpeg(self, string):
-        """ Capture tqdm output for progress bar """
+        """Capture tqdm output for progress bar"""
         logger.trace("Capturing ffmpeg")
         ffmpeg = self.consoleregex["ffmpeg"].findall(string)
         if len(ffmpeg) < 7:
@@ -397,12 +442,13 @@ class FaceswapControl():
         return True
 
     def terminate(self):
-        """ Terminate the running process in a LongRunningTask so we can still
-            output to console """
+        """Terminate the running process in a LongRunningTask so we can still
+        output to console"""
         if self.thread is None:
             logger.debug("Terminating wrapper in LongRunningTask")
-            self.thread = LongRunningTask(target=self.terminate_in_thread,
-                                          args=(self.command, self.process))
+            self.thread = LongRunningTask(
+                target=self.terminate_in_thread, args=(self.command, self.process)
+            )
             if self.command == "train":
                 self.wrapper.tk_vars.is_training.set(False)
             self.thread.start()
@@ -416,7 +462,7 @@ class FaceswapControl():
             self.thread = None
 
     def terminate_in_thread(self, command, process):
-        """ Terminate the subprocess """
+        """Terminate the subprocess"""
         logger.debug("Terminating wrapper")
         if command == "train":
             timeout = self.config.user_config_dict.get("timeout", 120)
@@ -425,8 +471,11 @@ class FaceswapControl():
             now = time()
             if os.name == "nt":
                 logger.debug("Sending carriage return to process")
-                con_in = win32console.GetStdHandle(  # pylint:disable=c-extension-no-member
-                    win32console.STD_INPUT_HANDLE)  # pylint:disable=c-extension-no-member
+                con_in = (
+                    win32console.GetStdHandle(  # pylint:disable=c-extension-no-member
+                        win32console.STD_INPUT_HANDLE
+                    )
+                )  # pylint:disable=c-extension-no-member
                 keypress = self.generate_windows_keypress("\n")
                 con_in.WriteConsoleInput([keypress])
             else:
@@ -445,9 +494,10 @@ class FaceswapControl():
 
     @staticmethod
     def generate_windows_keypress(character):
-        """ Generate an 'Enter' key press to terminate Windows training """
+        """Generate an 'Enter' key press to terminate Windows training"""
         buf = win32console.PyINPUT_RECORDType(  # pylint:disable=c-extension-no-member
-            win32console.KEY_EVENT)  # pylint:disable=c-extension-no-member
+            win32console.KEY_EVENT
+        )  # pylint:disable=c-extension-no-member
         buf.KeyDown = 1
         buf.RepeatCount = 1
         buf.Char = character
@@ -455,7 +505,7 @@ class FaceswapControl():
 
     @staticmethod
     def terminate_all_children():
-        """ Terminates all children """
+        """Terminates all children"""
         logger.debug("Terminating Process...")
         print("Terminating Process...", flush=True)
         children = psutil.Process().children(recursive=True)
@@ -482,8 +532,8 @@ class FaceswapControl():
                 print(msg)
 
     def set_final_status(self, returncode):
-        """ Set the status bar output based on subprocess return code
-            and reset training stats """
+        """Set the status bar output based on subprocess return code
+        and reset training stats"""
         logger.debug("Setting final status. returncode: %s", returncode)
         self.train_stats = {"iterations": 0, "timestamp": None}
         if returncode in (0, 3221225786):

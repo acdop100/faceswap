@@ -39,6 +39,7 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = "Options for blending the edges between the mask and the background image"
@@ -48,9 +49,9 @@ _DEFAULTS = dict(
     type=dict(
         default="normalized",
         info="The type of blending to use:"
-             "\n\t gaussian: Blend with Gaussian filter. Slower, but often better than Normalized"
-             "\n\t normalized: Blend with Normalized box filter. Faster than Gaussian"
-             "\n\t none: Don't perform blending",
+        "\n\t gaussian: Blend with Gaussian filter. Slower, but often better than Normalized"
+        "\n\t normalized: Blend with Normalized box filter. Faster than Gaussian"
+        "\n\t none: Don't perform blending",
         datatype=str,
         rounding=None,
         min_max=None,
@@ -62,9 +63,9 @@ _DEFAULTS = dict(
     kernel_size=dict(
         default=3,
         info="The kernel size dictates how much blending should occur.\n"
-             "The size is the diameter of the kernel in pixels (calculated from a 128px mask). "
-             "This value should be odd, if an even number is passed in then it will be rounded to "
-             "the next odd number. Higher sizes means more blending.",
+        "The size is the diameter of the kernel in pixels (calculated from a 128px mask). "
+        "This value should be odd, if an even number is passed in then it will be rounded to "
+        "the next odd number. Higher sizes means more blending.",
         datatype=int,
         rounding=1,
         min_max=(1, 9),
@@ -76,9 +77,9 @@ _DEFAULTS = dict(
     passes=dict(
         default=4,
         info="The number of passes to perform. Additional passes of the blending algorithm can "
-             "improve smoothing at a time cost. This is more useful for 'box' type blending.\n"
-             "Additional passes have exponentially less effect so it's not worth setting this too "
-             "high.",
+        "improve smoothing at a time cost. This is more useful for 'box' type blending.\n"
+        "Additional passes have exponentially less effect so it's not worth setting this too "
+        "high.",
         datatype=int,
         rounding=1,
         min_max=(1, 8),
@@ -101,9 +102,9 @@ _DEFAULTS = dict(
     erosion=dict(
         default=0.0,
         info="Apply erosion to the whole of the face mask.\n"
-             "Erosion kernel size as a percentage of the mask radius area.\n"
-             "Positive values apply erosion which reduces the size of the swapped area.\n"
-             "Negative values apply dilation which increases the swapped area.",
+        "Erosion kernel size as a percentage of the mask radius area.\n"
+        "Positive values apply erosion which reduces the size of the swapped area.\n"
+        "Negative values apply dilation which increases the swapped area.",
         datatype=float,
         rounding=1,
         min_max=(-100.0, 100.0),
@@ -115,8 +116,8 @@ _DEFAULTS = dict(
     erosion_top=dict(
         default=0.0,
         info="Apply erosion to the top part of the mask only.\n"
-             "Positive values apply erosion which pulls the mask into the center.\n"
-             "Negative values apply dilation which pushes the mask away from the center.",
+        "Positive values apply erosion which pulls the mask into the center.\n"
+        "Negative values apply dilation which pushes the mask away from the center.",
         datatype=float,
         rounding=1,
         min_max=(-100.0, 100.0),
@@ -128,8 +129,8 @@ _DEFAULTS = dict(
     erosion_bottom=dict(
         default=0.0,
         info="Apply erosion to the bottom part of the mask only.\n"
-             "Positive values apply erosion which pulls the mask into the center.\n"
-             "Negative values apply dilation which pushes the mask away from the center.",
+        "Positive values apply erosion which pulls the mask into the center.\n"
+        "Negative values apply dilation which pushes the mask away from the center.",
         datatype=float,
         rounding=1,
         min_max=(-100.0, 100.0),
@@ -141,8 +142,8 @@ _DEFAULTS = dict(
     erosion_left=dict(
         default=0.0,
         info="Apply erosion to the left part of the mask only.\n"
-             "Positive values apply erosion which pulls the mask into the center.\n"
-             "Negative values apply dilation which pushes the mask away from the center.",
+        "Positive values apply erosion which pulls the mask into the center.\n"
+        "Negative values apply dilation which pushes the mask away from the center.",
         datatype=float,
         rounding=1,
         min_max=(-100.0, 100.0),
@@ -154,8 +155,8 @@ _DEFAULTS = dict(
     erosion_right=dict(
         default=0.0,
         info="Apply erosion to the right part of the mask only.\n"
-             "Positive values apply erosion which pulls the mask into the center.\n"
-             "Negative values apply dilation which pushes the mask away from the center.",
+        "Positive values apply erosion which pulls the mask into the center.\n"
+        "Negative values apply dilation which pushes the mask away from the center.",
         datatype=float,
         rounding=1,
         min_max=(-100.0, 100.0),

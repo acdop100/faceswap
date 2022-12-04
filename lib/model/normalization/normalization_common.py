@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """ Normalization methods for faceswap.py common to both Plaid and Tensorflow Backends """
+from __future__ import annotations
 
-import sys
 import inspect
+import sys
 
 from lib.utils import get_backend
 
@@ -13,10 +14,22 @@ if get_backend() == "amd":
     from keras.backend import normalize_data_format  # pylint:disable=no-name-in-module
 else:
     # Ignore linting errors from Tensorflow's thoroughly broken import system
-    from tensorflow.keras.utils import get_custom_objects  # noqa pylint:disable=no-name-in-module,import-error
-    from tensorflow.keras.layers import Layer, InputSpec  # noqa pylint:disable=no-name-in-module,import-error
-    from tensorflow.keras import initializers, regularizers, constraints, backend as K  # noqa pylint:disable=no-name-in-module,import-error
-    from tensorflow.python.keras.utils.conv_utils import normalize_data_format  # noqa pylint:disable=no-name-in-module
+    from tensorflow.keras.utils import (
+        get_custom_objects,
+    )  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras.layers import (
+        Layer,
+        InputSpec,
+    )  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.keras import (
+        initializers,
+        regularizers,
+        constraints,
+        backend as K,
+    )  # noqa pylint:disable=no-name-in-module,import-error
+    from tensorflow.python.keras.utils.conv_utils import (
+        normalize_data_format,
+    )  # noqa pylint:disable=no-name-in-module
 
 
 class InstanceNormalization(Layer):
@@ -62,19 +75,22 @@ class InstanceNormalization(Layer):
         - Instance Normalization: The Missing Ingredient for Fast Stylization - \
         https://arxiv.org/abs/1607.08022
     """
+
     # pylint:disable=too-many-instance-attributes,too-many-arguments
-    def __init__(self,
-                 axis=None,
-                 epsilon=1e-3,
-                 center=True,
-                 scale=True,
-                 beta_initializer="zeros",
-                 gamma_initializer="ones",
-                 beta_regularizer=None,
-                 gamma_regularizer=None,
-                 beta_constraint=None,
-                 gamma_constraint=None,
-                 **kwargs):
+    def __init__(
+        self,
+        axis=None,
+        epsilon=1e-3,
+        center=True,
+        scale=True,
+        beta_initializer="zeros",
+        gamma_initializer="ones",
+        beta_regularizer=None,
+        gamma_regularizer=None,
+        beta_constraint=None,
+        gamma_constraint=None,
+        **kwargs,
+    ):
         self.beta = None
         self.gamma = None
         super().__init__(**kwargs)
@@ -106,7 +122,9 @@ class InstanceNormalization(Layer):
         if (self.axis is not None) and (ndim == 2):
             raise ValueError("Cannot specify axis for rank 1 tensor")
 
-        self.input_spec = InputSpec(ndim=ndim)  # pylint:disable=attribute-defined-outside-init
+        self.input_spec = InputSpec(
+            ndim=ndim
+        )  # pylint:disable=attribute-defined-outside-init
 
         if self.axis is None:
             shape = (1,)
@@ -114,24 +132,30 @@ class InstanceNormalization(Layer):
             shape = (input_shape[self.axis],)
 
         if self.scale:
-            self.gamma = self.add_weight(shape=shape,
-                                         name="gamma",
-                                         initializer=self.gamma_initializer,
-                                         regularizer=self.gamma_regularizer,
-                                         constraint=self.gamma_constraint)
+            self.gamma = self.add_weight(
+                shape=shape,
+                name="gamma",
+                initializer=self.gamma_initializer,
+                regularizer=self.gamma_regularizer,
+                constraint=self.gamma_constraint,
+            )
         else:
             self.gamma = None
         if self.center:
-            self.beta = self.add_weight(shape=shape,
-                                        name="beta",
-                                        initializer=self.beta_initializer,
-                                        regularizer=self.beta_regularizer,
-                                        constraint=self.beta_constraint)
+            self.beta = self.add_weight(
+                shape=shape,
+                name="beta",
+                initializer=self.beta_initializer,
+                regularizer=self.beta_regularizer,
+                constraint=self.beta_constraint,
+            )
         else:
             self.beta = None
         self.built = True  # pylint:disable=attribute-defined-outside-init
 
-    def call(self, inputs, training=None):  # pylint:disable=arguments-differ,unused-argument
+    def call(
+        self, inputs, training=None
+    ):  # pylint:disable=arguments-differ,unused-argument
         """This is where the layer's logic lives.
 
         Parameters
@@ -193,7 +217,7 @@ class InstanceNormalization(Layer):
             "beta_regularizer": regularizers.serialize(self.beta_regularizer),
             "gamma_regularizer": regularizers.serialize(self.gamma_regularizer),
             "beta_constraint": constraints.serialize(self.beta_constraint),
-            "gamma_constraint": constraints.serialize(self.gamma_constraint)
+            "gamma_constraint": constraints.serialize(self.gamma_constraint),
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
@@ -227,7 +251,10 @@ class AdaInstanceNormalization(Layer):
         Arbitrary Style Transfer in Real-time with Adaptive Instance Normalization - \
         https://arxiv.org/abs/1703.06868
     """
-    def __init__(self, axis=-1, momentum=0.99, epsilon=1e-3, center=True, scale=True, **kwargs):
+
+    def __init__(
+        self, axis=-1, momentum=0.99, epsilon=1e-3, center=True, scale=True, **kwargs
+    ):
         super().__init__(**kwargs)
         self.axis = axis
         self.momentum = momentum
@@ -246,14 +273,19 @@ class AdaInstanceNormalization(Layer):
         """
         dim = input_shape[0][self.axis]
         if dim is None:
-            raise ValueError('Axis ' + str(self.axis) + ' of '
-                             'input tensor should have a defined dimension '
-                             'but the layer received an input with shape ' +
-                             str(input_shape[0]) + '.')
+            raise ValueError(
+                "Axis " + str(self.axis) + " of "
+                "input tensor should have a defined dimension "
+                "but the layer received an input with shape "
+                + str(input_shape[0])
+                + "."
+            )
 
         super().build(input_shape)
 
-    def call(self, inputs, training=None):  # pylint:disable=unused-argument,arguments-differ
+    def call(
+        self, inputs, training=None
+    ):  # pylint:disable=unused-argument,arguments-differ
         """This is where the layer's logic lives.
 
         Parameters
@@ -293,17 +325,17 @@ class AdaInstanceNormalization(Layer):
             A python dictionary containing the layer configuration
         """
         config = {
-            'axis': self.axis,
-            'momentum': self.momentum,
-            'epsilon': self.epsilon,
-            'center': self.center,
-            'scale': self.scale
+            "axis": self.axis,
+            "momentum": self.momentum,
+            "epsilon": self.epsilon,
+            "center": self.center,
+            "scale": self.scale,
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_output_shape(self, input_shape):  # pylint:disable=no-self-use
-        """ Calculate the output shape from this layer.
+        """Calculate the output shape from this layer.
 
         Parameters
         ----------
@@ -319,7 +351,7 @@ class AdaInstanceNormalization(Layer):
 
 
 class GroupNormalization(Layer):
-    """ Group Normalization
+    """Group Normalization
 
     Parameters
     ----------
@@ -350,9 +382,20 @@ class GroupNormalization(Layer):
     ----------
     Shaoanlu GAN: https://github.com/shaoanlu/faceswap-GAN
     """
+
     # pylint:disable=too-many-instance-attributes
-    def __init__(self, axis=-1, gamma_init='one', beta_init='zero', gamma_regularizer=None,
-                 beta_regularizer=None, epsilon=1e-6, group=32, data_format=None, **kwargs):
+    def __init__(
+        self,
+        axis=-1,
+        gamma_init="one",
+        beta_init="zero",
+        gamma_regularizer=None,
+        beta_regularizer=None,
+        epsilon=1e-6,
+        group=32,
+        data_format=None,
+        **kwargs,
+    ):
         self.beta = None
         self.gamma = None
         super().__init__(**kwargs)
@@ -379,25 +422,31 @@ class GroupNormalization(Layer):
         input_spec = [InputSpec(shape=input_shape)]
         self.input_spec = input_spec  # pylint:disable=attribute-defined-outside-init
         shape = [1 for _ in input_shape]
-        if self.data_format == 'channels_last':
+        if self.data_format == "channels_last":
             channel_axis = -1
             shape[channel_axis] = input_shape[channel_axis]
-        elif self.data_format == 'channels_first':
+        elif self.data_format == "channels_first":
             channel_axis = 1
             shape[channel_axis] = input_shape[channel_axis]
         # for i in self.axis:
         #    shape[i] = input_shape[i]
-        self.gamma = self.add_weight(shape=shape,
-                                     initializer=self.gamma_init,
-                                     regularizer=self.gamma_regularizer,
-                                     name='gamma')
-        self.beta = self.add_weight(shape=shape,
-                                    initializer=self.beta_init,
-                                    regularizer=self.beta_regularizer,
-                                    name='beta')
+        self.gamma = self.add_weight(
+            shape=shape,
+            initializer=self.gamma_init,
+            regularizer=self.gamma_regularizer,
+            name="gamma",
+        )
+        self.beta = self.add_weight(
+            shape=shape,
+            initializer=self.beta_init,
+            regularizer=self.beta_regularizer,
+            name="beta",
+        )
         self.built = True  # pylint:disable=attribute-defined-outside-init
 
-    def call(self, inputs, mask=None):  # pylint:disable=unused-argument,arguments-differ
+    def call(
+        self, inputs, mask=None
+    ):  # pylint:disable=unused-argument,arguments-differ
         """This is where the layer's logic lives.
 
         Parameters
@@ -412,47 +461,58 @@ class GroupNormalization(Layer):
         """
         input_shape = K.int_shape(inputs)
         if len(input_shape) != 4 and len(input_shape) != 2:
-            raise ValueError('Inputs should have rank ' +
-                             str(4) + " or " + str(2) +
-                             '; Received input shape:', str(input_shape))
+            raise ValueError(
+                "Inputs should have rank "
+                + str(4)
+                + " or "
+                + str(2)
+                + "; Received input shape:",
+                str(input_shape),
+            )
 
         if len(input_shape) == 4:
-            if self.data_format == 'channels_last':
+            if self.data_format == "channels_last":
                 batch_size, height, width, channels = input_shape
                 if batch_size is None:
                     batch_size = -1
 
                 if channels < self.group:
-                    raise ValueError('Input channels should be larger than group size' +
-                                     '; Received input channels: ' + str(channels) +
-                                     '; Group size: ' + str(self.group))
+                    raise ValueError(
+                        "Input channels should be larger than group size"
+                        + "; Received input channels: "
+                        + str(channels)
+                        + "; Group size: "
+                        + str(self.group)
+                    )
 
-                var_x = K.reshape(inputs, (batch_size,
-                                           height,
-                                           width,
-                                           self.group,
-                                           channels // self.group))
+                var_x = K.reshape(
+                    inputs,
+                    (batch_size, height, width, self.group, channels // self.group),
+                )
                 mean = K.mean(var_x, axis=[1, 2, 4], keepdims=True)
                 std = K.sqrt(K.var(var_x, axis=[1, 2, 4], keepdims=True) + self.epsilon)
                 var_x = (var_x - mean) / std
 
                 var_x = K.reshape(var_x, (batch_size, height, width, channels))
                 retval = self.gamma * var_x + self.beta
-            elif self.data_format == 'channels_first':
+            elif self.data_format == "channels_first":
                 batch_size, channels, height, width = input_shape
                 if batch_size is None:
                     batch_size = -1
 
                 if channels < self.group:
-                    raise ValueError('Input channels should be larger than group size' +
-                                     '; Received input channels: ' + str(channels) +
-                                     '; Group size: ' + str(self.group))
+                    raise ValueError(
+                        "Input channels should be larger than group size"
+                        + "; Received input channels: "
+                        + str(channels)
+                        + "; Group size: "
+                        + str(self.group)
+                    )
 
-                var_x = K.reshape(inputs, (batch_size,
-                                           self.group,
-                                           channels // self.group,
-                                           height,
-                                           width))
+                var_x = K.reshape(
+                    inputs,
+                    (batch_size, self.group, channels // self.group, height, width),
+                )
                 mean = K.mean(var_x, axis=[2, 3, 4], keepdims=True)
                 std = K.sqrt(K.var(var_x, axis=[2, 3, 4], keepdims=True) + self.epsilon)
                 var_x = (var_x - mean) / std
@@ -484,13 +544,15 @@ class GroupNormalization(Layer):
         dict
             A python dictionary containing the layer configuration
         """
-        config = {'epsilon': self.epsilon,
-                  'axis': self.axis,
-                  'gamma_init': initializers.serialize(self.gamma_init),
-                  'beta_init': initializers.serialize(self.beta_init),
-                  'gamma_regularizer': regularizers.serialize(self.gamma_regularizer),
-                  'beta_regularizer': regularizers.serialize(self.gamma_regularizer),
-                  'group': self.group}
+        config = {
+            "epsilon": self.epsilon,
+            "axis": self.axis,
+            "gamma_init": initializers.serialize(self.gamma_init),
+            "beta_init": initializers.serialize(self.beta_init),
+            "gamma_regularizer": regularizers.serialize(self.gamma_regularizer),
+            "beta_regularizer": regularizers.serialize(self.gamma_regularizer),
+            "group": self.group,
+        }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 

@@ -41,37 +41,40 @@
                    the value saved in the state file with the updated value in config. If not
                    provided this will default to True.
 """
+from __future__ import annotations
 
 
 _HELPTEXT = (
     "Custom (dummy) Mask options..\n"
     "The custom mask just fills a face patch with all 0's (masked out) or all 1's (masked in) for "
     "later manual editing. It does not use the GPU for creation."
-    )
+)
 
 
 _DEFAULTS = {
     "batch-size": dict(
         default=8,
         info="The batch size to use. To a point, higher batch sizes equal better performance, but "
-             "setting it too high can harm performance.",
+        "setting it too high can harm performance.",
         datatype=int,
         rounding=1,
         min_max=(1, 64),
-        group="settings"),
+        group="settings",
+    ),
     "centering": dict(
         default="face",
         info="Whether to create a dummy mask with face or head centering.",
         choices=["face", "head"],
         datatype=str,
         group="settings",
-        gui_radio=True),
+        gui_radio=True,
+    ),
     "fill": dict(
         default=False,
         info="Whether the mask should be filled (True) in which case the custom mask will be "
-             "created with the whole area masked in (i.e. you would need to manually edit out the "
-             "background) or unfilled (False) in which case you would need to manually edit in "
-             "the face.",
+        "created with the whole area masked in (i.e. you would need to manually edit out the "
+        "background) or unfilled (False) in which case you would need to manually edit in "
+        "the face.",
         datatype=bool,
         group="settings",
         gui_radio=True,
